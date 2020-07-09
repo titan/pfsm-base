@@ -1,0 +1,206 @@
+module Pfsm.Analyser
+
+import Pfsm.Parser
+import Pfsm.Data
+
+import Data.List
+
+public export
+AnalyserError : Type
+AnalyserError = String
+
+------------
+-- Helper --
+------------
+
+bold : String -> String
+bold str = "\ESC[1m" ++ str ++ "\ESC[0m"
+
+join : List (Either (List AnalyserError) (a, SExp)) -> Either (List AnalyserError) (List a, SExp)
+join lst
+  = case join' [] lst of
+         Left err => Left err
+         Right res => Right (res, BottomAtom)
+  where
+    join' : List a -> List (Either (List AnalyserError) (a, SExp)) -> Either (List AnalyserError) (List a)
+    join' xs [] = Right xs
+    join' xs (y :: ys) = case y of
+                              Left e => Left e
+                              Right (res, _) => join' (res :: xs) ys
+
+--------------
+-- Analyser --
+--------------
+
+export
+record Analyser a where
+  constructor MkAnalyser
+  runAnalyser : SExp -> Either (List AnalyserError) (a, SExp)
+
+fail : AnalyserError -> Analyser a
+fail err
+  = MkAnalyser $ \ _ => Left [err]
+
+succeed : a -> Analyser a
+succeed a
+  = MkAnalyser $ \ s => Right (a, s)
+
+implementation Functor Analyser where
+  map f x = MkAnalyser $ \ s =>
+            case runAnalyser x s of
+                 Left err => Left err
+                 Right (a, rest) => Right (f a, rest)
+
+implementation Applicative Analyser where
+  pure a = MkAnalyser $ \ s => Right (a, s)
+  x <*> y = MkAnalyser $ \ s =>
+            case runAnalyser x s of
+                 Left errs => Left errs
+                 Right (f, rest) => case runAnalyser y rest of
+                                         Left errs => Left errs
+                                         Right (a, rest2) => Right (f a, rest2)
+
+Alternative Analyser where
+  x <|> y = MkAnalyser $ \ s =>
+            case runAnalyser x s of
+                 Left errs0 => case runAnalyser y s of
+                                    Left errs1 => Left $ errs0 ++ errs1
+                                    Right (a, rest) => Right (a, rest)
+                 Right (a, rest) => Right (a, rest)
+
+Monad Analyser where 
+  x >>= f = MkAnalyser $ \ s =>
+        case runAnalyser x s of
+             Right (a, rest) => runAnalyser (f a) rest
+             Left errs => Left errs
+  join x = x >>= id
+
+string : String -> Analyser String
+string str
+  = MkAnalyser $ \ s =>
+    case s of
+         SExpList ((StringAtom str) :: rest) => Right (str, SExpList rest)
+         _ => Left [("expect string \"" ++ (bold str) ++ "\", but got: " ++ (show s))]
+
+anyString : Analyser String
+anyString
+  = MkAnalyser $ \ s =>
+    case s of
+         SExpList ((StringAtom str) :: rest) => Right (str, SExpList rest)
+         _ => Left [("expect string, but got: " ++ (show s))]
+
+symbol : String -> Analyser String
+symbol sym
+  = MkAnalyser $ \ s =>
+    case s of
+         SExpList ((SymbolAtom sym) :: rest) => Right (sym, SExpList rest)
+         _ => Left [("expect symbol " ++ (bold sym) ++ ", but got: " ++ (show s))]
+
+export
+anySymbol : Analyser String
+anySymbol
+  = MkAnalyser $ \ s =>
+    case s of
+         SExpList ((SymbolAtom sym) :: rest) => Right (sym, SExpList rest)
+         _ => Left [("expect symbol, but got: " ++ (show s))]
+
+mutual
+  many : Analyser a -> Analyser (List a)
+  many x
+    = some x <|> succeed []
+    
+  some : Analyser a -> Analyser (List a)
+  some x
+    = do
+      a <- x
+      as <- many x
+      succeed (a :: as)
+
+andThen : Analyser x -> Analyser y -> Analyser (x, y)
+andThen x y
+  = do
+    a <- x
+    b <- y
+    succeed (a, b)
+
+analyseType : Analyser Tipe
+analyseType
+  = primtype <|> list <|> dict
+  where
+    prim : Analyser PrimType
+    prim = do
+      x <- anySymbol
+      if x `elem` primTypeStrs
+         then case fromString x of
+                   Just pt => succeed pt
+                   Nothing => fail $ (bold x) ++ " is not a primtive type, maybe it should be:" ++ (foldl (\ a, x => a ++ " " ++ x) "" primTypeStrs)
+         else fail $ (bold x) ++ " is not a primtive type, maybe it should be:" ++ (foldl (\ a, x => a ++ " " ++ x) "" primTypeStrs)
+    primtype : Analyser Tipe
+    primtype = do
+      x <- prim
+      succeed $ TPrimType x
+    list : Analyser Tipe
+    list = do
+      MkAnalyser $ \ s =>
+           case s of
+                SExpList ((SymbolAtom "list") :: ss) =>
+                                                case runAnalyser analyseType $ SExpList ss of
+                                                     Left errs => Left errs
+                                                     Right (a, rest) => Right (TList a, rest)
+                _ => Left [("expect symbol " ++ (bold "list") ++ ", but got " ++ (show s))]
+    dict : Analyser Tipe
+    dict = MkAnalyser $ \ s =>
+           case s of
+                SExpList ((SymbolAtom "dict") :: (SymbolAtom key) :: ss) =>
+                                                case runAnalyser (prim `andThen` analyseType) (SExpList ((SymbolAtom key) :: ss)) of
+                                                     Left errs => Left errs
+                                                     Right ((key, value), rest) => Right (TDict key value, rest)
+                _ => Left [("expect symbol " ++ (bold "dict") ++ ", but got " ++ (show s))]
+
+analyseThe : Analyser (Name, Tipe, Description)
+analyseThe
+  = withDesc <|> withoutDesc
+  where
+    withDesc : Analyser (Name, Tipe, Description)
+    withDesc = do 
+      _ <- symbol "the"
+      t <- analyseType
+      n <- anySymbol
+      d <- anyString
+      succeed (n, t, d)
+    withoutDesc : Analyser (Name, Tipe, Description)
+    withoutDesc = do
+      _ <- symbol "the"
+      t <- analyseType
+      n <- anySymbol
+      succeed (n, t, "")
+
+-----------
+-- Model --
+-----------
+
+export
+analyseModel : Analyser (List (Name, Tipe, Description))
+analyseModel
+  = MkAnalyser $ \ s =>
+      case s of
+           SExpList ((SymbolAtom "model") :: rest) => join $ map (\ x => runAnalyser analyseThe x) rest
+           _ => Left [("expect symbol " ++ (bold "model") ++ ", but got " ++ (show s))]
+
+
+-----------
+-- Event --
+-----------
+
+export
+analyseEvent : Analyser Event
+analyseEvent
+  = MkAnalyser $ \ s =>
+      case s of
+           SExpList ((SymbolAtom "event") :: (SymbolAtom name) :: rest) =>
+                                            case join $ map (\ x => runAnalyser analyseThe x) rest of
+                                                 Left e => Left e
+                                                 Right (params, r) => Right (MkEvent name params, r)
+
+           _ => Left [("expect symbol " ++ (bold "event") ++ " and symbol of event name, but got " ++ (show s))]
+
