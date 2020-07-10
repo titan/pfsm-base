@@ -1,4 +1,4 @@
-package base
+package pfsm
 
 modules = Pfsm.Analyser, Pfsm.Checker, Pfsm.Data, Pfsm.Parser
 depends = contrib
