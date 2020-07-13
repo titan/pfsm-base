@@ -59,11 +59,11 @@ anyString
                          StringAtom s => Just s
                          _ => Nothing)
 
-integer : Rule Integer
+integer : Rule Int
 integer
   = terminal "Expected integer"
              (\x => case x of
-                         IntegerAtom n => Just n
+                         IntAtom n => Just n
                          _ => Nothing)
 
 real : Rule Double

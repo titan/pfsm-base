@@ -5,29 +5,44 @@ import public Text.Parser.Core
 import public Text.Parser
 import Data.List
 
-data Token = IInt Integer
-           | Real Double
-           | Identifier String
-           | SString String
-           | Comment String
-           | OpenParen
-           | CloseParen
+data FsmKind = FKInt | FKReal | FKIdentifier | FKChar | FKString | FKComment | FKOpenParen | FKCloseParen
 
-export
-Show Token where
-  show (IInt i)       = "<int " ++ (show i) ++ ">"
-  show (Real d)       = "<double " ++ (show d) ++ ">"
-  show (Identifier i) = "<identifier " ++ i ++ ">"
-  show (SString s)    = "<string " ++ s ++ ">"
-  show (Comment c)    = "<comment " ++ c ++ ">"
-  show OpenParen      = "("
-  show CloseParen     = ")"
+TokenKind FsmKind where
+  TokType  FKInt          = Int
+  TokType  FKReal         = Double
+  TokType  FKIdentifier   = String
+  TokType  FKChar         = Char
+  TokType  FKString       = String
+  TokType  FKComment      = String
+  TokType  FKOpenParen    = ()
+  TokType  FKCloseParen   = ()
+  tokValue FKInt x        = cast x
+  tokValue FKReal x       = cast x
+  tokValue FKIdentifier x = x
+  tokValue FKChar x       = case unpack(x) of
+                                 c0 :: c1 :: c2 :: [] => c1
+                                 _ => '\0'
+  tokValue FKString x     = case length x > 1 of
+                                 True => (substr 1 (minus (length x) 2) x)
+                                 _ => ""
+  tokValue FKComment x    = x
+  tokValue FKOpenParen x  = ()
+  tokValue FKCloseParen x = ()
 
-toInt' : String -> Integer
-toInt' = cast
+Eq FsmKind where
+  (==) FKInt        FKInt        = True
+  (==) FKReal       FKReal       = True
+  (==) FKIdentifier FKIdentifier = True
+  (==) FKChar       FKChar       = True
+  (==) FKString     FKString     = True
+  (==) FKComment    FKComment    = True
+  (==) FKOpenParen  FKOpenParen  = True
+  (==) FKCloseParen FKCloseParen = True
+  (==) _            _            = False
 
-toDouble' : String -> Double
-toDouble' = cast
+
+FsmToken : Type
+FsmToken = Token FsmKind
 
 comment : Lexer
 comment = is ';' <+> is ';' <+> many (isNot '\n')
@@ -35,26 +50,27 @@ comment = is ';' <+> is ';' <+> many (isNot '\n')
 specialSymbol : Lexer
 specialSymbol = oneOf "!$%&*/:<=>?^_~+-.@"
 
-identifier : Lexer
-identifier = (some (alphaNum <|> specialSymbol))
+idnLit : Lexer
+idnLit = (some (alphaNum <|> specialSymbol))
 
-real : Lexer
-real = digits <+> is '.' <+> digits
+realLit : Lexer
+realLit = opt (is '-') <+> digits <+> is '.' <+> digits
 
-tokens : TokenMap Token
-tokens =
-  [ (real, \x => Real (toDouble' x))
-  , (digits, \x => IInt (toInt' x ))
-  , (identifier, Identifier)
-  , (stringLit, SString)
-  , (is '(', \x => OpenParen)
-  , (is ')', \x => CloseParen)
-  , (spaces, Comment)
-  , (comment, Comment)
-  ]
+tokens : TokenMap FsmToken
+tokens
+  = toTokenMap [ (intLit,    FKInt)
+               , (realLit,   FKReal)
+               , (idnLit,    FKIdentifier)
+               , (charLit,   FKChar)
+               , (stringLit, FKString)
+               , (is '(',    FKOpenParen)
+               , (is ')',    FKCloseParen)
+               , (spaces,    FKComment)
+               , (comment,   FKComment)
+               ]
 
 public export
-data SExp = IntegerAtom Integer
+data SExp = IntAtom Int
           | RealAtom Double
           | SymbolAtom String
           | StringAtom String
@@ -62,7 +78,7 @@ data SExp = IntegerAtom Integer
 
 export
 Show SExp where
-  showPrec d (IntegerAtom n) = showCon d "IntegerAtom" $ showArg n
+  showPrec d (IntAtom n)     = showCon d "IntAtom" $ showArg n
   showPrec d (RealAtom n)    = showCon d "RealAtom" $ showArg n
   showPrec d (SymbolAtom s)  = showCon d "SymbolAtom" $ showArg s
   showPrec d (StringAtom s)  = showCon d "StringAtom" $ showArg s
@@ -70,69 +86,37 @@ Show SExp where
 
 
 Rule : Type -> Type
-Rule ty = Grammar (TokenData Token) True ty
+Rule ty = Grammar FsmToken True ty
 
-intLit : Rule SExp
-intLit
-  = terminal "Expected integer literal"
-             (\x => case tok x of
-                         IInt n => Just (IntegerAtom n)
-                         _ => Nothing)
+int : Rule SExp
+int = map IntAtom $ match FKInt
 
-realLit : Rule SExp
-realLit
-  = terminal "Expected real literal"
-             (\x => case tok x of
-                         Real n => Just (RealAtom n)
-                         _ => Nothing)
+real : Rule SExp
+real = map RealAtom $ match FKReal
 
-idnLit : Rule SExp
-idnLit
-  = terminal "Expected identifier"
-             (\x => case tok x of
-                         Identifier i => Just (SymbolAtom i)
-                         _ => Nothing)
+identifier : Rule SExp
+identifier = map SymbolAtom $ match FKIdentifier
 
-strLit : Rule SExp
-strLit
-  = terminal "Expected string literal"
-             (\x => case tok x of
-                         SString s => case length s > 1 of
-                                           True => Just (StringAtom (substr 1 (minus (length s) 2) s))
-                                           False => Nothing
-                         _ => Nothing)
-
-openParen : Rule SExp
-openParen
-  = terminal "Expected open paren"
-             (\x => case tok x of
-                         OpenParen => Just (StringAtom "(")
-                         _ => Nothing)
-
-closeParen : Rule SExp
-closeParen
-  = terminal "Expected close paren"
-             (\x => case tok x of
-                         CloseParen => Just (StringAtom ")")
-                         _ => Nothing)
+string : Rule SExp
+string = map StringAtom $ match FKString
 
 sexp : Rule SExp
-sexp = intLit
-   <|> realLit
-   <|> idnLit
-   <|> strLit
+sexp = int
+   <|> real
+   <|> identifier
+   <|> string
    <|> do
-       openParen
+       match FKOpenParen
        xs <- many sexp
-       closeParen
+       match FKCloseParen
        pure (SExpList xs)
 
 export
-parseSExp : String -> Either (ParseError (TokenData Token)) (SExp, List (TokenData Token))
+parseSExp : String -> Either (ParseError FsmToken) (SExp, List FsmToken)
 parseSExp inp
-  = parse sexp (filter notComment (fst (lex tokens inp)))
+  = parse sexp (filter notComment (map TokenData.tok (fst (lex tokens inp))))
   where
-    notComment : TokenData Token -> Bool
-    notComment t = case tok t of
-                        Comment _ => False
+    notComment : FsmToken -> Bool
+    notComment t = case kind t of
+                        FKComment => False
                         _ => True

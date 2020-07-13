@@ -17,7 +17,7 @@ lint f
     case r of
          Left e => putStrLn $ show e
          Right content => case parseSExp content of
-                               Left (Error e r) => putStrLn ("Parse error " ++ e ++ ", the rest tokens are " ++ (foldr (\x, a => a ++ ", " ++ (show x)) "" r))
+                               Left (Error e r) => putStrLn ("Parse error " ++ e )
                                Right (sexp, _) => case analyse sexp of
                                                        Left (Error e _) => putStrLn $ "run analyser error, " ++ e
                                                        Right (fsm, _) => case check fsm of

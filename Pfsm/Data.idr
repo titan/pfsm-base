@@ -42,7 +42,7 @@ public export
 data Expression = ApplicationExpression String (List Expression)
                 | BooleanExpression Bool
                 | IdentifyExpression String
-                | IntegerLiteralExpression Integer
+                | IntegerLiteralExpression Int
                 | RealLiteralExpression Double
                 | StringLiteralExpression String
 
