@@ -103,10 +103,6 @@ Name : Type
 Name = String
 
 public export
-Description : Type
-Description = String
-
-public export
 StateRef : Type
 StateRef = String
 
@@ -132,13 +128,12 @@ public export
 record Role where
   constructor MkRole
   name: Name
-  description: Description
+  metas: List Meta
 
 public export
 record State where
   constructor MkState
   name: Name
-  description: Description
   onEnter: Maybe (List Action)
   onExit: Maybe (List Action)
   metas: Maybe (List Meta)
@@ -147,7 +142,7 @@ public export
 record Event where
   constructor MkEvent
   name: Name
-  params: List (Name, Tipe, Description)
+  params: List (Name, Tipe, List Meta)
 
 public export
 record Transition where
@@ -163,8 +158,7 @@ public export
 record Fsm where
   constructor MkFsm
   name: Name
-  description: Description
-  model: List (Name, Tipe, Description)
+  model: List (Name, Tipe, List Meta)
   roles: List Role
   events: List Event
   states: List State

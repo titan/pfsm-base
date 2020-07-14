@@ -119,7 +119,7 @@ tipe = primtype <|> list <|> dict
       t <- tipe
       pure (TDict p t)
 
-thz : Rule (Name, Tipe, Description)
+thz : Rule (Name, Tipe, List Meta)
 thz
   = terminal ("Expected " ++ (bold "the") ++ " sexp")
              (\x => case x of
@@ -128,19 +128,19 @@ thz
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    thz' : Rule (Name, Tipe, Description)
+    thz' : Rule (Name, Tipe, List Meta)
     thz' = do
       symbol "the"
       t <- tipe
       n <- anySymbol
-      d <- option "" anyString
-      pure (n, t , d)
+      ms <- many meta
+      pure (n, t , ms)
 
 -----------
 -- Model --
 -----------
 
-model : Rule (List (Name, Tipe, Description))
+model : Rule (List (Name, Tipe, List Meta))
 model
   = terminal ("Expected model sexp")
              (\x => case x of
@@ -149,7 +149,7 @@ model
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    model' : Rule (List (Name, Tipe, Description))
+    model' : Rule (List (Name, Tipe, List Meta))
     model' = do
       symbol "model"
       xs <- many thz
@@ -192,8 +192,8 @@ role
     role' = do
       symbol "role"
       n <- anySymbol
-      d <- anyString
-      pure (MkRole n d)
+      ms <- many meta
+      pure (MkRole n ms)
 
 ----------------
 -- Expression --
@@ -419,9 +419,8 @@ state
     state' = do
       symbol "state"
       n <- anySymbol
-      d <- anyString
       is <- many item
-      pure (MkState n d
+      pure (MkState n
                     (toMaybeElem (fst $ unzipItems is ([], [], [])))
                     (toMaybeElem ((fst . snd) $ unzipItems is ([], [], [])))
                     (toMaybe ((snd . snd) $ unzipItems is ([], [], []))))
@@ -551,10 +550,9 @@ fsm
     fsm' = do
       symbol "fsm"
       n <- anySymbol
-      d <- anyString
       m <- model
       is <- many item
-      pure (MkFsm n d m
+      pure (MkFsm n m
                   (fst $ unzipItems is ([], [], [], [], []))
                   ((fst . snd) $ unzipItems is ([], [], [], [], []))
                   ((fst . (snd . snd)) $ unzipItems is ([], [], [], [], []))
