@@ -119,7 +119,7 @@ tipe = primtype <|> list <|> dict
       t <- tipe
       pure (TDict p t)
 
-thz : Rule (Name, Tipe, List Meta)
+thz : Rule (Name, Tipe, Maybe (List Meta))
 thz
   = terminal ("Expected " ++ (bold "the") ++ " sexp")
              (\x => case x of
@@ -128,19 +128,19 @@ thz
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    thz' : Rule (Name, Tipe, List Meta)
+    thz' : Rule (Name, Tipe, Maybe (List Meta))
     thz' = do
       symbol "the"
       t <- tipe
       n <- anySymbol
-      ms <- many meta
+      ms <- optional $ many meta
       pure (n, t , ms)
 
 -----------
 -- Model --
 -----------
 
-model : Rule (List (Name, Tipe, List Meta))
+model : Rule (List (Name, Tipe, Maybe (List Meta)))
 model
   = terminal ("Expected model sexp")
              (\x => case x of
@@ -149,7 +149,7 @@ model
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    model' : Rule (List (Name, Tipe, List Meta))
+    model' : Rule (List (Name, Tipe, Maybe (List Meta)))
     model' = do
       symbol "model"
       xs <- many thz
