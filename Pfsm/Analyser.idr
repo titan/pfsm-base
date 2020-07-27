@@ -175,25 +175,25 @@ event
       xs <- many thz
       pure (MkEvent n xs)
 
-----------
--- Role --
-----------
+-----------------
+-- Participant --
+-----------------
 
-role : Rule Role
-role
-  = terminal ("Expected role sexp")
+participant : Rule Participant
+participant
+  = terminal ("Expected participant sexp")
              (\x => case x of
-                         SExpList ss => case parse role' ss of
+                         SExpList ss => case parse participant' ss of
                                              Left _ => Nothing
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    role' : Rule Role
-    role' = do
-      symbol "role"
+    participant' : Rule Participant
+    participant' = do
+      symbol "participant"
       n <- anySymbol
       ms <- many meta
-      pure (MkRole n ms)
+      pure (MkParticipant n ms)
 
 ----------------
 -- Expression --
@@ -476,7 +476,7 @@ guard
       pure be
 
 
-trigger : Rule (RoleRef, EventRef, Maybe BoolExpression)
+trigger : Rule (ParticipantRef, EventRef, Maybe BoolExpression)
 trigger
   = terminal ("Expected trigger-by sexp")
              (\x => case x of
@@ -485,13 +485,13 @@ trigger
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    trigger' : Rule (RoleRef, EventRef, Maybe BoolExpression)
+    trigger' : Rule (ParticipantRef, EventRef, Maybe BoolExpression)
     trigger' = do
       symbol "trigger-by"
-      r <- anySymbol
+      p <- anySymbol
       e <- anySymbol
       b <- optional bool
-      pure (r, e, b)
+      pure (p, e, b)
 
 transition : Rule Transition
 transition
@@ -529,21 +529,21 @@ fsm
                          _ => Nothing)
   where
 
-    unzipItems : List (Either Role (Either Event (Either State (Either Transition Meta)))) -> (List Role, List Event, List State, List Transition, List Meta) -> (List Role, List Event, List State, List Transition, List Meta)
+    unzipItems : List (Either Participant (Either Event (Either State (Either Transition Meta)))) -> (List Participant, List Event, List State, List Transition, List Meta) -> (List Participant, List Event, List State, List Transition, List Meta)
     unzipItems [] acc = acc
-    unzipItems (x :: xs) (rs, es, ss, ts, ms) = case x of
-                                                 Left r => unzipItems xs (r :: rs, es, ss, ts, ms)
+    unzipItems (x :: xs) (ps, es, ss, ts, ms) = case x of
+                                                 Left p => unzipItems xs (p :: ps, es, ss, ts, ms)
                                                  Right x1 => case x1 of
-                                                                  Left e => unzipItems xs (rs, e :: es, ss, ts, ms)
+                                                                  Left e => unzipItems xs (ps, e :: es, ss, ts, ms)
                                                                   Right x2 => case x2 of
-                                                                                   Left s => unzipItems xs (rs, es, s :: ss, ts, ms)
+                                                                                   Left s => unzipItems xs (ps, es, s :: ss, ts, ms)
                                                                                    Right x3 => case x3 of
-                                                                                                    Left t => unzipItems xs (rs, es, ss, t :: ts, ms)
-                                                                                                    Right m => unzipItems xs (rs, es, ss, ts, m :: ms)
+                                                                                                    Left t => unzipItems xs (ps, es, ss, t :: ts, ms)
+                                                                                                    Right m => unzipItems xs (ps, es, ss, ts, m :: ms)
 
-    item : Rule (Either Role (Either Event (Either State (Either Transition Meta))))
+    item : Rule (Either Participant (Either Event (Either State (Either Transition Meta))))
     item = do
-      x <- choose role (choose event (choose state (choose transition meta)))
+      x <- choose participant (choose event (choose state (choose transition meta)))
       pure x
 
     fsm' : Rule Fsm

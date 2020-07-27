@@ -27,15 +27,15 @@ checkEventRef er []        = Just ("Undefined event " ++ er)
 checkEventRef er (x :: xs) = if x.name == er
                                 then Nothing
                                 else checkEventRef er xs
-----------
--- Role --
-----------
+-----------------
+-- Participant --
+-----------------
 
-checkRoleRef : RoleRef -> List Role -> Maybe String
-checkRoleRef rr []        = Just ("Undefined role " ++ rr)
-checkRoleRef rr (x :: xs) = if x.name == rr
-                               then Nothing
-                               else checkRoleRef rr xs
+checkParticipantRef : ParticipantRef -> List Participant -> Maybe String
+checkParticipantRef pr []        = Just ("Undefined participant " ++ pr)
+checkParticipantRef pr (x :: xs) = if x.name == pr
+                                      then Nothing
+                                      else checkParticipantRef pr xs
 
 -----------
 -- State --
@@ -56,8 +56,8 @@ check : Fsm -> Maybe (List String)
 check fsm
   = summary $ foldr (\y, a => y ++ a) [] $ map (\x => x fsm) rules
   where
-    checkRoles : Fsm -> List (Maybe String)
-    checkRoles fsm = map (\x => checkRoleRef x.triggerBy fsm.roles) fsm.transitions
+    checkParticipants : Fsm -> List (Maybe String)
+    checkParticipants fsm = map (\x => checkParticipantRef x.triggerBy fsm.participants) fsm.transitions
 
     checkEvents : Fsm -> List (Maybe String)
     checkEvents fsm = map (\x => checkEventRef x.event fsm.events) fsm.transitions
@@ -69,4 +69,4 @@ check fsm
     checkDstStates fsm = map (\x => checkStateRef x.dst fsm.states) fsm.transitions
 
     rules : List (Fsm -> List (Maybe String))
-    rules = [checkRoles, checkEvents, checkSrcStates, checkDstStates]
+    rules = [checkParticipants, checkEvents, checkSrcStates, checkDstStates]

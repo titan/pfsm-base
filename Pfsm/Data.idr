@@ -205,8 +205,8 @@ EventRef : Type
 EventRef = String
 
 public export
-RoleRef : Type
-RoleRef = String
+ParticipantRef : Type
+ParticipantRef = String
 
 public export
 MetaKey: Type
@@ -228,8 +228,8 @@ Show Meta where
   show (MkMeta k (Right m)) = "(meta \"" ++ k ++ "\" " ++ show (m) ++ ")"
 
 public export
-record Role where
-  constructor MkRole
+record Participant where
+  constructor MkParticipant
   name: Name
   metas: List Meta
 
@@ -288,7 +288,7 @@ record Transition where
   constructor MkTransition
   src: StateRef
   dst: StateRef
-  triggerBy: RoleRef
+  triggerBy: ParticipantRef
   event: EventRef
   guard: Maybe BoolExpression
   actions: Maybe(List Action)
@@ -298,7 +298,7 @@ record Fsm where
   constructor MkFsm
   name: Name
   model: List (Name, Tipe, Maybe (List Meta))
-  roles: List Role
+  participants: List Participant
   events: List Event
   states: List State
   transitions: List Transition
