@@ -79,6 +79,11 @@ Eq Tipe where
   (==) (TDict k1 v1)  (TDict k2 v2)  = k1 == k2 && v1 == v2
   (==) _              _              = False
 
+export
+Ord Tipe where
+  compare t1 t2 = compare (show t1) (show t2)
+
+
 public export
 data Expression = ApplicationExpression String (List Expression)
                 | BooleanExpression Bool
@@ -120,6 +125,12 @@ Show BinaryBoolOperation where
   show AndBoolOperation = "and"
   show OrBoolOperation  = "or"
 
+export
+Eq BinaryBoolOperation where
+  (==) AndBoolOperation AndBoolOperation = True
+  (==) OrBoolOperation  OrBoolOperation  = True
+  (==) _                _                = False
+
 namespace BinaryBoolOperation
   export
   fromString : String -> Maybe BinaryBoolOperation
@@ -133,6 +144,11 @@ data UnaryBoolOperation = NotBoolOperation
 export
 Show UnaryBoolOperation where
   show NotBoolOperation = "not"
+
+export
+Eq UnaryBoolOperation where
+  (==) NotBoolOperation NotBoolOperation = True
+  (==) _                _                = False
 
 namespace UnaryBoolOperation
   export
@@ -153,6 +169,14 @@ Show CompareOperation where
   show LessThanOrEqualsToOperation  = "<="
   show GreatThanOperation           = ">"
   show GreatThanOrEqualsToOperation = ">="
+
+Eq CompareOperation where
+  (==) EqualsToOperation            EqualsToOperation            = True
+  (==) LessThanOperation            LessThanOperation            = True
+  (==) LessThanOrEqualsToOperation  LessThanOrEqualsToOperation  = True
+  (==) GreatThanOperation           GreatThanOperation           = True
+  (==) GreatThanOrEqualsToOperation GreatThanOrEqualsToOperation = True
+  (==) _                            _                            = False
 
 namespace CompareOperation
   export
@@ -177,6 +201,14 @@ Show BoolExpression where
   show (UnaryBoolExpression op e)      = "(" ++ (show op) ++ " " ++ (show e) ++ ")"
   show (CompareExpression op e1 e2)    = "(" ++ (show op) ++ " " ++ (show e1) ++ " " ++ (show e2) ++ ")"
 
+export
+Eq BoolExpression where
+  (==) (PrimitiveBoolExpression e1)       (PrimitiveBoolExpression e2)       = e1 == e2
+  (==) (BinaryBoolExpression op1 ea1 eb1) (BinaryBoolExpression op2 ea2 eb2) = (op1 == op2) && ((ea1 == ea2) || (ea1 == eb2) || (eb1 == eb2) || (eb1 == ea2))
+  (==) (UnaryBoolExpression op1 e1)       (UnaryBoolExpression op2 e2)       = (op1 == op2) && (e1 == e2)
+  (==) (CompareExpression op1 ea1 eb1)    (CompareExpression op2 ea2 eb2)    = (op1 == op2) && (ea1 == ea2) && (eb1 == eb2)
+  (==) _                                  _                                  = False
+
 public export
 data Action = ActionAssignment Expression Expression
             | ActionReturn Expression
@@ -191,6 +223,10 @@ Eq Action where
   (==) (ActionAssignment x1 x2) (ActionAssignment y1 y2) = x1 == y1 && y2 == y2 
   (==) (ActionReturn x)         (ActionReturn y)         = x == y
   (==) _                        _                        = False
+
+export
+Ord Action where
+  compare a1 a2 = compare (show a1) (show a2)
 
 public export
 Name : Type
@@ -292,6 +328,20 @@ record Transition where
   event: EventRef
   guard: Maybe BoolExpression
   actions: Maybe(List Action)
+
+export
+Show Transition where
+  show (MkTransition src dst triggerBy event (Just guard) actions) = "(transition (from-to " ++ src ++ " " ++ dst ++ ") (trigger-by " ++ triggerBy ++ " " ++ event ++ " (where " ++ (show guard) ++ ")) (action " ++ (show actions) ++ "))"
+  show (MkTransition src dst triggerBy event Nothing      actions) = "(transition (from-to " ++ src ++ " " ++ dst ++ ") (trigger-by " ++ triggerBy ++ " " ++ event ++ ") (action " ++ (show actions) ++ "))"
+
+export
+Eq Transition where
+  (==) t1 t2 = (t1.src == t2.src) && (t1.dst == t2.dst) && (t1.triggerBy == t2.triggerBy) && (t1.event == t2.event) && (t1.guard == t2.guard) && (t1.actions == t2.actions)
+
+export
+Ord Transition where
+  compare t1 t2 = compare (show t1) (show t2)
+
 
 public export
 record Fsm where
