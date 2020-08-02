@@ -348,15 +348,16 @@ action
         e <- expression
         pure (ActionAssignment i e)
     
-    return : Rule Action
-    return
+    output : Rule Action
+    output
       = do
-        symbol "return"
-        i <- identifier
-        pure (ActionReturn i)
+        symbol "output"
+        n  <- anySymbol
+        es <- many expression
+        pure (ActionOutput n es)
 
     action' : Rule Action
-    action' = assignment <|> return
+    action' = assignment <|> output
 
 -----------
 -- State --

@@ -3,6 +3,10 @@ module Pfsm.Data
 import Data.List
 
 public export
+Name : Type
+Name = String
+
+public export
 data PrimType = PTByte
               | PTChar
               | PTShort
@@ -49,17 +53,17 @@ namespace PrimType
   fromString : String -> Maybe PrimType
   fromString str
     = case str of
-        "byte" => Just PTByte
-        "char" => Just PTChar
-        "short" => Just PTShort
+        "byte"   => Just PTByte
+        "char"   => Just PTChar
+        "short"  => Just PTShort
         "ushort" => Just PTUShort
-        "int" => Just PTInt
-        "uint" => Just PTUInt
-        "long" => Just PTLong
-        "ulong" => Just PTULong
-        "real" => Just PTReal
+        "int"    => Just PTInt
+        "uint"   => Just PTUInt
+        "long"   => Just PTLong
+        "ulong"  => Just PTULong
+        "real"   => Just PTReal
         "string" => Just PTString
-        _ => Nothing
+        _        => Nothing
 
 public export
 data Tipe = TPrimType PrimType
@@ -69,8 +73,8 @@ data Tipe = TPrimType PrimType
 export
 Show Tipe where
   show (TPrimType pt) = show pt
-  show (TList t) = "(list " ++ (show t) ++ ")"
-  show (TDict k v) = "(dict " ++ (show k) ++ " " ++ (show v) ++ ")"
+  show (TList t)      = "(list " ++ (show t) ++ ")"
+  show (TDict k v)    = "(dict " ++ (show k) ++ " " ++ (show v) ++ ")"
 
 export
 Eq Tipe where
@@ -211,26 +215,23 @@ Eq BoolExpression where
 
 public export
 data Action = ActionAssignment Expression Expression
-            | ActionReturn Expression
+            | ActionOutput Name (List Expression)
 
 export
 Show Action where
   show (ActionAssignment e1 e2) = "(set! " ++ (show e1) ++ " " ++ (show e2) ++ ")"
-  show (ActionReturn e)         = "(return " ++ (show e) ++ ")"
+  show (ActionOutput n [])      = "(return " ++ n ++ ")"
+  show (ActionOutput n es)      = "(return " ++ n ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" es) ++ ")"
 
 export
 Eq Action where
   (==) (ActionAssignment x1 x2) (ActionAssignment y1 y2) = x1 == y1 && y2 == y2 
-  (==) (ActionReturn x)         (ActionReturn y)         = x == y
+  (==) (ActionOutput n1 es1)    (ActionOutput n2 es2)    = n1 == n2 && es1 == es2
   (==) _                        _                        = False
 
 export
 Ord Action where
   compare a1 a2 = compare (show a1) (show a2)
-
-public export
-Name : Type
-Name = String
 
 public export
 StateRef : Type
@@ -327,7 +328,7 @@ record Transition where
   triggerBy: ParticipantRef
   event: EventRef
   guard: Maybe BoolExpression
-  actions: Maybe(List Action)
+  actions: Maybe (List Action)
 
 export
 Show Transition where
