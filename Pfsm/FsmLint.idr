@@ -20,7 +20,7 @@ lint f
                                Left (Error e r) => putStrLn ("Parse error " ++ e )
                                Right (sexp, _) => case analyse sexp of
                                                        Left (Error e _) => putStrLn $ "run analyser error, " ++ e
-                                                       Right (fsm, _) => case check fsm of
+                                                       Right (fsm, _) => case check fsm defaultCheckingRules of
                                                                               Just errs => putStrLn $ foldr (\x, a => x ++ "\n" ++ a) "" errs
                                                                               Nothing => putStrLn (fsm.name ++ " is okay")
 

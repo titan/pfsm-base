@@ -51,22 +51,28 @@ checkStateRef sr (x :: xs) = if x.name == sr
 -- API --
 ---------
 
+checkParticipants : Fsm -> List (Maybe String)
+checkParticipants fsm
+  = map (\x => checkParticipantRef x.triggerBy fsm.participants) fsm.transitions
+
+checkEvents : Fsm -> List (Maybe String)
+checkEvents fsm
+  = map (\x => checkEventRef x.event fsm.events) fsm.transitions
+
+checkSrcStates : Fsm -> List (Maybe String)
+checkSrcStates fsm
+  = map (\x => checkStateRef x.src fsm.states) fsm.transitions
+
+checkDstStates : Fsm -> List (Maybe String)
+checkDstStates fsm
+  = map (\x => checkStateRef x.dst fsm.states) fsm.transitions
+
 export
-check : Fsm -> Maybe (List String)
-check fsm
+defaultCheckingRules : List (Fsm -> List (Maybe String))
+defaultCheckingRules
+  = [checkParticipants, checkEvents, checkSrcStates, checkDstStates]
+
+export
+check : Fsm -> List (Fsm -> List (Maybe String)) -> Maybe (List String)
+check fsm rules
   = summary $ foldr (\y, a => y ++ a) [] $ map (\x => x fsm) rules
-  where
-    checkParticipants : Fsm -> List (Maybe String)
-    checkParticipants fsm = map (\x => checkParticipantRef x.triggerBy fsm.participants) fsm.transitions
-
-    checkEvents : Fsm -> List (Maybe String)
-    checkEvents fsm = map (\x => checkEventRef x.event fsm.events) fsm.transitions
-
-    checkSrcStates : Fsm -> List (Maybe String)
-    checkSrcStates fsm = map (\x => checkStateRef x.src fsm.states) fsm.transitions
-
-    checkDstStates : Fsm -> List (Maybe String)
-    checkDstStates fsm = map (\x => checkStateRef x.dst fsm.states) fsm.transitions
-
-    rules : List (Fsm -> List (Maybe String))
-    rules = [checkParticipants, checkEvents, checkSrcStates, checkDstStates]
