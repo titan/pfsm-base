@@ -473,8 +473,8 @@ guard
     guard' : Rule BoolExpression
     guard' = do
       symbol "where"
-      be <- bool
-      pure be
+      b <- bool
+      pure b
 
 
 trigger : Rule (ParticipantRef, EventRef, Maybe BoolExpression)
@@ -491,8 +491,8 @@ trigger
       symbol "trigger-by"
       p <- anySymbol
       e <- anySymbol
-      b <- optional bool
-      pure (p, e, b)
+      g <- optional guard
+      pure (p, e, g)
 
 transition : Rule Transition
 transition

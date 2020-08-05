@@ -5,28 +5,28 @@ import Data.SortedSet
 import Pfsm.Data
 
 export
-derefEvent : List Event -> EventRef -> Maybe Event
-derefEvent []        _   = Nothing
-derefEvent (x :: xs) ref = if name x == ref
+derefEvent : EventRef -> List Event -> Maybe Event
+derefEvent _   []        = Nothing
+derefEvent ref (x :: xs) = if name x == ref
                               then Just x
-                              else derefEvent xs ref
+                              else derefEvent ref xs
 
 export
-derefState : List State -> StateRef -> Maybe State 
-derefState []        _   = Nothing
-derefState (x :: xs) ref = if name x == ref
+derefState : StateRef -> List State -> Maybe State 
+derefState _   []        = Nothing
+derefState ref (x :: xs) = if name x == ref
                               then Just x
-                              else derefState xs ref
+                              else derefState ref xs
 
-export
 liftStates : List State -> List Transition -> (SortedSet State, SortedSet State) -> (SortedSet State, SortedSet State)
-liftStates states []                                     acc          = acc
-liftStates states ((MkTransition src dst _ _ _ _) :: xs) (srcs, dsts) = liftStates states xs (case derefState states src of
-                                                                                                   Just s => insert s srcs
-                                                                                                   Nothing => srcs
-                                                                                             ,case derefState states dst of
-                                                                                                   Just s => insert s dsts
-                                                                                                   Nothing => dsts) 
+liftStates ss []                                   acc          = acc
+liftStates ss ((MkTransition sr dr _ _ _ _) :: xs) (srcs, dsts) = liftStates ss xs ( case derefState sr ss of
+                                                                                          Just s => insert s srcs
+                                                                                          Nothing => srcs
+                                                                                   , case derefState dr ss of
+                                                                                          Just s => insert s dsts
+                                                                                          Nothing => dsts
+                                                                                   )
 
 export
 startState : Fsm -> Maybe State
