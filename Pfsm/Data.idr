@@ -116,6 +116,10 @@ Eq Expression where
   (==) _                              _                              = False
 
 export
+Ord Expression where
+  compare e1 e2 = compare (show e1) (show e2)
+
+export
 toBool : String -> Bool
 toBool "true" = True
 toBool _ = False
