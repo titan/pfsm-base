@@ -69,18 +69,21 @@ public export
 data Tipe = TPrimType PrimType
           | TList Tipe
           | TDict PrimType Tipe
+          | TArrow Tipe Tipe
 
 export
 Show Tipe where
   show (TPrimType pt) = show pt
   show (TList t)      = "(list " ++ (show t) ++ ")"
   show (TDict k v)    = "(dict " ++ (show k) ++ " " ++ (show v) ++ ")"
+  show (TArrow p r)    = "(-> " ++ (show p) ++ " " ++ (show r) ++ ")"
 
 export
 Eq Tipe where
   (==) (TPrimType p1) (TPrimType p2) = p1 == p2
   (==) (TList t1)     (TList t2)     = t1 == t2
   (==) (TDict k1 v1)  (TDict k2 v2)  = k1 == k2 && v1 == v2
+  (==) (TArrow p1 r1) (TArrow p2 r2) = p1 == p2 && r1 == r2
   (==) _              _              = False
 
 export
@@ -218,19 +221,19 @@ Eq BoolExpression where
   (==) _                                  _                                  = False
 
 public export
-data Action = ActionAssignment Expression Expression
-            | ActionOutput Name (List Expression)
+data Action = AssignmentAction Expression Expression
+            | OutputAction Name (List Expression)
 
 export
 Show Action where
-  show (ActionAssignment e1 e2) = "(set! " ++ (show e1) ++ " " ++ (show e2) ++ ")"
-  show (ActionOutput n [])      = "(return " ++ n ++ ")"
-  show (ActionOutput n es)      = "(return " ++ n ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" es) ++ ")"
+  show (AssignmentAction e1 e2) = "(set! " ++ (show e1) ++ " " ++ (show e2) ++ ")"
+  show (OutputAction n [])      = "(return " ++ n ++ ")"
+  show (OutputAction n es)      = "(return " ++ n ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" es) ++ ")"
 
 export
 Eq Action where
-  (==) (ActionAssignment x1 x2) (ActionAssignment y1 y2) = x1 == y1 && y2 == y2 
-  (==) (ActionOutput n1 es1)    (ActionOutput n2 es2)    = n1 == n2 && es1 == es2
+  (==) (AssignmentAction x1 x2) (AssignmentAction y1 y2) = x1 == y1 && y2 == y2 
+  (==) (OutputAction n1 es1)    (OutputAction n2 es2)    = n1 == n2 && es1 == es2
   (==) _                        _                        = False
 
 export

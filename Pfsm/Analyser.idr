@@ -346,7 +346,7 @@ action
         symbol "set!"
         i <- identifier
         e <- expression
-        pure (ActionAssignment i e)
+        pure (AssignmentAction i e)
     
     output : Rule Action
     output
@@ -354,7 +354,7 @@ action
         symbol "output"
         n  <- anySymbol
         es <- many expression
-        pure (ActionOutput n es)
+        pure (OutputAction n es)
 
     action' : Rule Action
     action' = assignment <|> output
