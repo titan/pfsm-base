@@ -1,13 +1,15 @@
 module Pfsm.Data
 
 import Data.List
+import Data.SortedMap
 
 public export
 Name : Type
 Name = String
 
 public export
-data PrimType = PTByte
+data PrimType = PTBool
+              | PTByte
               | PTChar
               | PTShort
               | PTUShort
@@ -19,6 +21,7 @@ data PrimType = PTByte
               | PTString
 
 Show PrimType where
+  show PTBool   = "bool"
   show PTByte   = "byte"
   show PTChar   = "char"
   show PTShort  = "short"
@@ -32,6 +35,7 @@ Show PrimType where
 
 export
 Eq PrimType where
+  (==) PTBool   PTBool   = True
   (==) PTByte   PTByte   = True
   (==) PTChar   PTChar   = True
   (==) PTShort  PTShort  = True
@@ -46,45 +50,52 @@ Eq PrimType where
 
 export
 primTypeStrs : List String
-primTypeStrs = ["byte", "char", "short", "ushort", "int", "uint", "long", "ulong", "real", "string"]
+primTypeStrs = ["bool", "byte", "char", "short", "ushort", "int", "uint", "long", "ulong", "real", "string"]
 
 namespace PrimType
   export
   fromString : String -> Maybe PrimType
   fromString str
     = case str of
-        "byte"   => Just PTByte
-        "char"   => Just PTChar
-        "short"  => Just PTShort
-        "ushort" => Just PTUShort
-        "int"    => Just PTInt
-        "uint"   => Just PTUInt
-        "long"   => Just PTLong
-        "ulong"  => Just PTULong
-        "real"   => Just PTReal
-        "string" => Just PTString
-        _        => Nothing
+           "bool"   => Just PTBool
+           "byte"   => Just PTByte
+           "char"   => Just PTChar
+           "short"  => Just PTShort
+           "ushort" => Just PTUShort
+           "int"    => Just PTInt
+           "uint"   => Just PTUInt
+           "long"   => Just PTLong
+           "ulong"  => Just PTULong
+           "real"   => Just PTReal
+           "string" => Just PTString
+           _        => Nothing
 
 public export
 data Tipe = TPrimType PrimType
           | TList Tipe
           | TDict PrimType Tipe
           | TArrow Tipe Tipe
+          | TRecord Name (List Tipe)
+          | TUnit
 
 export
 Show Tipe where
   show (TPrimType pt) = show pt
   show (TList t)      = "(list " ++ (show t) ++ ")"
   show (TDict k v)    = "(dict " ++ (show k) ++ " " ++ (show v) ++ ")"
-  show (TArrow p r)    = "(-> " ++ (show p) ++ " " ++ (show r) ++ ")"
+  show (TArrow p r)   = "(-> " ++ (show p) ++ " " ++ (show r) ++ ")"
+  show (TRecord n ts) = "(record " ++ (show n) ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" ts) ++ ")"
+  show TUnit          = "()"
 
 export
 Eq Tipe where
-  (==) (TPrimType p1) (TPrimType p2) = p1 == p2
-  (==) (TList t1)     (TList t2)     = t1 == t2
-  (==) (TDict k1 v1)  (TDict k2 v2)  = k1 == k2 && v1 == v2
-  (==) (TArrow p1 r1) (TArrow p2 r2) = p1 == p2 && r1 == r2
-  (==) _              _              = False
+  (==) (TPrimType p1)   (TPrimType p2)   = p1 == p2
+  (==) (TList t1)       (TList t2)       = t1 == t2
+  (==) (TDict k1 v1)    (TDict k2 v2)    = k1 == k2 && v1 == v2
+  (==) (TArrow p1 r1)   (TArrow p2 r2)   = p1 == p2 && r1 == r2
+  (==) (TRecord n1 ts1) (TRecord n2 ts2) = n1 == n2 && ts1 == ts2
+  (==) TUnit            TUnit            = True
+  (==) _                _                = False
 
 export
 Ord Tipe where
@@ -121,6 +132,16 @@ Eq Expression where
 export
 Ord Expression where
   compare e1 e2 = compare (show e1) (show e2)
+
+export
+inferType : SortedMap Expression Tipe -> Expression -> Maybe Tipe
+inferType env (ApplicationExpression _ es) = Just $ foldl (\acc, x => TArrow x acc ) TUnit (reverse (map ((maybe TUnit id) . (inferType env)) es))
+inferType env (BooleanExpression _)        = Just (TPrimType PTBool)
+inferType env i@(IdentifyExpression _)     = lookup i env
+inferType env (IntegerLiteralExpression _) = Just (TPrimType PTInt)
+inferType env (RealLiteralExpression _)    = Just (TPrimType PTReal)
+inferType env (StringLiteralExpression _)  = Just (TPrimType PTString)
+inferType _   _                            = Nothing
 
 export
 toBool : String -> Bool
@@ -168,20 +189,25 @@ namespace UnaryBoolOperation
   fromString _     = Nothing
 
 public export
-data CompareOperation = EqualsToOperation
+data CompareOperation = NotEqualsToOperation
+                      | EqualsToOperation
                       | LessThanOperation
                       | LessThanOrEqualsToOperation
                       | GreatThanOperation
                       | GreatThanOrEqualsToOperation
 
+export
 Show CompareOperation where
+  show NotEqualsToOperation         = "<>"
   show EqualsToOperation            = "="
   show LessThanOperation            = "<"
   show LessThanOrEqualsToOperation  = "<="
   show GreatThanOperation           = ">"
   show GreatThanOrEqualsToOperation = ">="
 
+export
 Eq CompareOperation where
+  (==) NotEqualsToOperation         NotEqualsToOperation         = True
   (==) EqualsToOperation            EqualsToOperation            = True
   (==) LessThanOperation            LessThanOperation            = True
   (==) LessThanOrEqualsToOperation  LessThanOrEqualsToOperation  = True
@@ -193,6 +219,8 @@ namespace CompareOperation
   export
   fromString : String -> Maybe CompareOperation
   fromString "="  = Just EqualsToOperation
+  fromString "==" = Just EqualsToOperation
+  fromString "<>" = Just NotEqualsToOperation
   fromString "<"  = Just LessThanOperation
   fromString "<=" = Just LessThanOrEqualsToOperation
   fromString ">"  = Just GreatThanOperation
