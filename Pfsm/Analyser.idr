@@ -1,10 +1,11 @@
 module Pfsm.Analyser
 
-import public Control.Delayed
-import public Text.Parser.Core
-import public Text.Parser
+import Control.Delayed
+import Data.List
+import Text.Parser.Core
+import Text.Parser
 import Pfsm.Data
-import public Pfsm.Parser
+import Pfsm.Parser
 
 ------------
 -- Helper --
@@ -119,7 +120,7 @@ tipe = primtype <|> list <|> dict
       t <- tipe
       pure (TDict p t)
 
-thz : Rule (Name, Tipe, Maybe (List Meta))
+thz : Rule Parameter
 thz
   = terminal ("Expected " ++ (bold "the") ++ " sexp")
              (\x => case x of
@@ -128,7 +129,7 @@ thz
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    thz' : Rule (Name, Tipe, Maybe (List Meta))
+    thz' : Rule Parameter
     thz' = do
       symbol "the"
       t <- tipe
@@ -140,7 +141,7 @@ thz
 -- Model --
 -----------
 
-model : Rule (List (Name, Tipe, Maybe (List Meta)))
+model : Rule (List Parameter)
 model
   = terminal ("Expected model sexp")
              (\x => case x of
@@ -149,7 +150,7 @@ model
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    model' : Rule (List (Name, Tipe, Maybe (List Meta)))
+    model' : Rule (List Parameter)
     model' = do
       symbol "model"
       xs <- many thz
@@ -294,7 +295,7 @@ mutual
                            (\x => case x of
                                        SymbolAtom s => fromString s
                                        _ => Nothing)
-  
+
       unaryBool' : Rule BoolExpression
       unaryBool' = do
         op <- operation
@@ -316,7 +317,7 @@ mutual
                            (\x => case x of
                                        SymbolAtom s => fromString s
                                        _ => Nothing)
-  
+
       binaryBool' : Rule BoolExpression
       binaryBool' = do
         op <- operation
@@ -332,7 +333,7 @@ mutual
 ------------
 
 action : Rule Action
-action 
+action
   = terminal ("Expected sexp list")
              (\x => case x of
                          SExpList ss => case parse action' ss of
@@ -347,7 +348,7 @@ action
         i <- identifier
         e <- expression
         pure (AssignmentAction i e)
-    
+
     output : Rule Action
     output
       = do
@@ -363,7 +364,7 @@ action
 -- State --
 -----------
 
-onEnter : Rule (List Action) 
+onEnter : Rule (List Action)
 onEnter
   = terminal ("Expected on-enter sexp")
              (\x => case x of
@@ -372,13 +373,13 @@ onEnter
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    onEnter' : Rule (List Action) 
+    onEnter' : Rule (List Action)
     onEnter' = do
       symbol "on-enter"
       xs <- many action
       pure xs
 
-onExit : Rule (List Action) 
+onExit : Rule (List Action)
 onExit
   = terminal ("Expected on-enter sexp")
              (\x => case x of
@@ -387,7 +388,7 @@ onExit
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    onExit' : Rule (List Action) 
+    onExit' : Rule (List Action)
     onExit' = do
       symbol "on-exit"
       xs <- many action
@@ -406,9 +407,9 @@ state
     item = choose onEnter (choose onExit meta)
 
     unzipItems : List (Either (List Action) (Either (List Action) Meta)) -> ((List (List Action)), (List (List Action)), List Meta) -> ((List (List Action)), (List (List Action)), List Meta)
-    unzipItems [] acc = acc
+    unzipItems [] (ens, exs, ms) = (reverse ens, reverse exs, ms)
     unzipItems (x :: xs) (ens, exs, ms) = case x of
-                                               Left en => unzipItems xs (en :: ens, exs, ms) 
+                                               Left en => unzipItems xs (en :: ens, exs, ms)
                                                Right x1 => case x1 of
                                                                 Left ex => unzipItems xs (ens, ex :: exs, ms)
                                                                 Right m => unzipItems xs (ens, exs, m :: ms)
@@ -431,7 +432,7 @@ state
 ----------------
 
 transitionAction : Rule (List Action)
-transitionAction 
+transitionAction
   = terminal ("Expected action sexp")
              (\x => case x of
                          SExpList ss => case parse transitionAction' ss of
@@ -530,36 +531,39 @@ fsm
                          _ => Nothing)
   where
 
-    unzipItems : List (Either Participant (Either Event (Either State (Either Transition Meta)))) -> (List Participant, List Event, List State, List Transition, List Meta) -> (List Participant, List Event, List State, List Transition, List Meta)
-    unzipItems [] acc = acc
-    unzipItems (x :: xs) (ps, es, ss, ts, ms) = case x of
-                                                 Left p => unzipItems xs (p :: ps, es, ss, ts, ms)
-                                                 Right x1 => case x1 of
-                                                                  Left e => unzipItems xs (ps, e :: es, ss, ts, ms)
-                                                                  Right x2 => case x2 of
-                                                                                   Left s => unzipItems xs (ps, es, s :: ss, ts, ms)
-                                                                                   Right x3 => case x3 of
-                                                                                                    Left t => unzipItems xs (ps, es, ss, t :: ts, ms)
-                                                                                                    Right m => unzipItems xs (ps, es, ss, ts, m :: ms)
+    unzipItems : List (Either (List Parameter) (Either Participant (Either Event (Either State (Either Transition Meta))))) -> (List Parameter, List Participant, List Event, List State, List Transition, List Meta) -> (List Parameter, List Participant, List Event, List State, List Transition, List Meta)
+    unzipItems []        (m, ps, es, ss, ts, ms) = (m, reverse ps, reverse es, reverse ss, reverse ts, ms)
+    unzipItems (x :: xs) (m, ps, es, ss, ts, ms) = case x of
+                                                        Left m' => unzipItems xs (m', ps, es, ss, ts, ms)
+                                                        Right x0 => case x0 of
+                                                                         Left p => unzipItems xs (m, p :: ps, es, ss, ts, ms)
+                                                                         Right x1 => case x1 of
+                                                                                          Left e => unzipItems xs (m, ps, e :: es, ss, ts, ms)
+                                                                                          Right x2 => case x2 of
+                                                                                                           Left s => unzipItems xs (m, ps, es, s :: ss, ts, ms)
+                                                                                                           Right x3 => case x3 of
+                                                                                                                            Left t => unzipItems xs (m, ps, es, ss, t :: ts, ms)
+                                                                                                                            Right m' => unzipItems xs (m, ps, es, ss, ts, m' :: ms)
 
-    item : Rule (Either Participant (Either Event (Either State (Either Transition Meta))))
+    item : Rule (Either (List Parameter) (Either Participant (Either Event (Either State (Either Transition Meta)))))
     item = do
-      x <- choose participant (choose event (choose state (choose transition meta)))
+      x <- choose model (choose participant (choose event (choose state (choose transition meta))))
       pure x
 
     fsm' : Rule Fsm
-    fsm' = do
-      symbol "fsm"
-      n <- anySymbol
-      m <- model
-      is <- many item
-      pure (MkFsm n m
-                  (fst $ unzipItems is ([], [], [], [], []))
-                  ((fst . snd) $ unzipItems is ([], [], [], [], []))
-                  ((fst . (snd . snd)) $ unzipItems is ([], [], [], [], []))
-                  ((fst . (snd . (snd . snd))) $ unzipItems is ([], [], [], [], []))
-                  (toMaybe ((snd . (snd . (snd . snd))) $ unzipItems is ([], [], [], [], [])))
-                  )
+    fsm'
+      = do symbol "fsm"
+           n <- anySymbol
+           is <- many item
+           -- let uz = unzipItems is ([], [], [], [], [], [])
+           pure (MkFsm n
+                       (fst $ unzipItems is ([], [], [], [], [], []))
+                       ((fst . snd) $ unzipItems is ([], [], [], [], [], []))
+                       ((fst . snd . snd) $ unzipItems is ([], [], [], [], [], []))
+                       ((fst . snd . snd . snd) $ unzipItems is ([], [], [], [], [], []))
+                       ((fst . snd . snd . snd . snd) $ unzipItems is ([], [], [], [], [], []))
+                       (toMaybe ((snd . snd . snd . snd . snd) $ unzipItems is ([], [], [], [], [], [])))
+                       )
 
 ---------
 -- API --
@@ -567,5 +571,5 @@ fsm
 
 export
 analyse : SExp -> Either (ParseError SExp) (Fsm, List SExp)
-analyse sexp 
+analyse sexp
   = parse fsm [sexp]

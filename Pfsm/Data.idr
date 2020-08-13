@@ -260,9 +260,7 @@ Show Action where
 
 export
 Eq Action where
-  (==) (AssignmentAction x1 x2) (AssignmentAction y1 y2) = x1 == y1 && y2 == y2 
-  (==) (OutputAction n1 es1)    (OutputAction n2 es2)    = n1 == n2 && es1 == es2
-  (==) _                        _                        = False
+  (==) a1 a2 = (show a1) == (show a2)
 
 export
 Ord Action where
@@ -326,34 +324,33 @@ Show State where
 
 export
 Eq State where
-  (==) (MkState n1 ens1 exs1 ms1) (MkState n2 ens2 exs2 ms2) = n1 == n2 && ens1 == ens2 && exs1 == exs2 && ms1 == ms2
+  (==) s1 s2 = (show s1) == (show s2)
 
 export
 Ord State where
   compare (MkState n1 _ _ _) (MkState n2 _ _ _) = compare n1 n2
 
 public export
+Parameter : Type
+Parameter = (Name, Tipe, Maybe (List Meta))
+
+public export
 record Event where
   constructor MkEvent
   name: Name
-  params: List (Name, Tipe, Maybe (List Meta))
+  params: List Parameter
 
 export
 Show Event where
-  show (MkEvent n ps) = "(event " ++ n ++ " " ++ (foldl (\a, (pn, pt, pms) => a ++ "(the " ++ (show pt) ++ " " ++ pn ++ " " ++ (show pms) ++ ")") "" ps) ++ ")"
+  show (MkEvent n ps) = "(event " ++ n ++ (foldl (\acc, (pn, pt, pms) => acc ++ " (the " ++ (show pt) ++ " " ++ pn ++ " " ++ (show pms) ++ ")") "" ps) ++ ")"
 
 export
 Eq Event where
-   (==) e1 e2 = (name e1) == (name e2) && parameq (params e1) (params e2)
-              where
-                parameq : List (Name, Tipe, Maybe (List Meta)) -> List (Name, Tipe, Maybe (List Meta)) -> Bool
-                parameq []                  ys                  = False
-                parameq xs                  []                  = False
-                parameq ((xn, xt, _) :: xs) ((yn, yt, _) :: ys) = xn == yn && xt == yt && parameq xs ys
+  (==) e1 e2 = (show e1) == (show e2)
 
 export
 Ord Event where
-  compare (MkEvent n1 ps1) (MkEvent n2 ps2) = compare (n1 ++ (show ps1)) (n2 ++ (show ps2))
+  compare e1 e2 = compare (show e1) (show e2)
 
 public export
 record Transition where
@@ -383,7 +380,7 @@ public export
 record Fsm where
   constructor MkFsm
   name: Name
-  model: List (Name, Tipe, Maybe (List Meta))
+  model: List Parameter
   participants: List Participant
   events: List Event
   states: List State
