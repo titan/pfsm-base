@@ -220,8 +220,8 @@ stringLiteral = do
   x <- anyString
   pure (StringLiteralExpression x)
 
-boolean : Rule Expression
-boolean = do
+booleanLiteral : Rule Expression
+booleanLiteral = do
   x <- (symbol "true") <|> (symbol "false")
   pure (BooleanExpression (toBool x))
 
@@ -243,7 +243,7 @@ mutual
 
   expression : Rule Expression
   expression
-    = identifier <|> integerLiteral <|> realLiteral <|> stringLiteral <|> application <|> boolean
+    = booleanLiteral <|> integerLiteral <|> realLiteral <|> stringLiteral <|> identifier <|> application
 
 compare : Rule BoolExpression
 compare
