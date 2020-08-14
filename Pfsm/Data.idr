@@ -248,6 +248,10 @@ Eq BoolExpression where
   (==) (CompareExpression op1 ea1 eb1)    (CompareExpression op2 ea2 eb2)    = (op1 == op2) && (ea1 == ea2) && (eb1 == eb2)
   (==) _                                  _                                  = False
 
+export
+Ord BoolExpression where
+  compare b1 b2 = compare (show b1) (show b2)
+
 public export
 data Action = AssignmentAction Expression Expression
             | OutputAction Name (List Expression)
@@ -353,28 +357,46 @@ Ord Event where
   compare e1 e2 = compare (show e1) (show e2)
 
 public export
-record Transition where
-  constructor MkTransition
-  src: StateRef
-  dst: StateRef
-  triggerBy: ParticipantRef
+record Trigger where
+  constructor MkTrigger
+  participant: ParticipantRef
   event: EventRef
   guard: Maybe BoolExpression
   actions: Maybe (List Action)
 
 export
+Show Trigger where
+  show (MkTrigger p e (Just g) (Just as)) = "(trigger " ++ p ++ " " ++ e ++ " (where " ++ (show g) ++ ") (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
+  show (MkTrigger p e Nothing  (Just as)) = "(trigger " ++ p ++ " " ++ e ++ " (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
+  show (MkTrigger p e (Just g) Nothing) = "(trigger " ++ p ++ " " ++ e ++ " (where " ++ (show g) ++ "))"
+  show (MkTrigger p e Nothing  Nothing) = "(trigger " ++ p ++ " " ++ e ++ ")"
+
+export
+Eq Trigger where
+  (==) t1 t2 = (show t1) == (show t2)
+
+export
+Ord Trigger where
+  compare t1 t2 = compare (show t1) (show t2)
+
+public export
+record Transition where
+  constructor MkTransition
+  src: StateRef
+  dst: StateRef
+  triggers: List Trigger
+
+export
 Show Transition where
-  show (MkTransition src dst triggerBy event (Just guard) actions) = "(transition (from-to " ++ src ++ " " ++ dst ++ ") (trigger-by " ++ triggerBy ++ " " ++ event ++ " (where " ++ (show guard) ++ ")) (action " ++ (show actions) ++ "))"
-  show (MkTransition src dst triggerBy event Nothing      actions) = "(transition (from-to " ++ src ++ " " ++ dst ++ ") (trigger-by " ++ triggerBy ++ " " ++ event ++ ") (action " ++ (show actions) ++ "))"
+  show (MkTransition src dst triggers) = "(transition (from-to " ++ src ++ " " ++ dst ++ ")" ++ (foldl (\acc,x => acc ++ " " ++ (show x)) "" triggers) ++ ")"
 
 export
 Eq Transition where
-  (==) t1 t2 = (t1.src == t2.src) && (t1.dst == t2.dst) && (t1.triggerBy == t2.triggerBy) && (t1.event == t2.event) && (t1.guard == t2.guard) && (t1.actions == t2.actions)
+  (==) t1 t2 = (show t1) == (show t2)
 
 export
 Ord Transition where
   compare t1 t2 = compare (show t1) (show t2)
-
 
 public export
 record Fsm where

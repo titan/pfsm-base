@@ -477,23 +477,23 @@ guard
       b <- bool
       pure b
 
-
-trigger : Rule (ParticipantRef, EventRef, Maybe BoolExpression)
+trigger : Rule Trigger
 trigger
-  = terminal ("Expected trigger-by sexp")
+  = terminal ("Expected trigger sexp")
              (\x => case x of
                          SExpList ss => case parse trigger' ss of
                                              Left _ => Nothing
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    trigger' : Rule (ParticipantRef, EventRef, Maybe BoolExpression)
+    trigger' : Rule Trigger
     trigger' = do
-      symbol "trigger-by"
+      symbol "trigger"
       p <- anySymbol
       e <- anySymbol
       g <- optional guard
-      pure (p, e, g)
+      as <- optional transitionAction
+      pure (MkTrigger p e g as)
 
 transition : Rule Transition
 transition
@@ -508,14 +508,8 @@ transition
     transition' = do
       symbol "transition"
       sd <- fromTo
-      reg <- trigger
-      as <- optional transitionAction
-      let s = fst sd
-      let d = snd sd
-      let r = fst reg
-      let e = (fst . snd) reg
-      let g = (snd . snd) reg
-      pure (MkTransition s d r e g as)
+      ts <- many trigger
+      pure (MkTransition (fst sd) (snd sd) ts)
 
 
 ---------

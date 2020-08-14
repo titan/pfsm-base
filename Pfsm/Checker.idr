@@ -2,6 +2,7 @@ module Pfsm.Checker
 
 import Data.List
 import Pfsm.Data
+import Pfsm.Utility
 
 -------------
 -- Utility --
@@ -11,7 +12,7 @@ summary : List (Maybe String) -> Maybe (List String)
 summary xs
   = summary' xs []
   where
-    summary' : List (Maybe String) -> List String -> Maybe (List String) 
+    summary' : List (Maybe String) -> List String -> Maybe (List String)
     summary' []        []  = Nothing
     summary' []        acc = Just acc
     summary' (x :: xs) acc = case x of
@@ -53,11 +54,11 @@ checkStateRef sr (x :: xs) = if x.name == sr
 
 checkParticipants : Fsm -> List (Maybe String)
 checkParticipants fsm
-  = map (\x => checkParticipantRef x.triggerBy fsm.participants) fsm.transitions
+  = flatten $ map (\x => map (\y => checkParticipantRef y.participant fsm.participants) x.triggers) fsm.transitions
 
 checkEvents : Fsm -> List (Maybe String)
 checkEvents fsm
-  = map (\x => checkEventRef x.event fsm.events) fsm.transitions
+  = flatten $ map (\x => map (\y => checkEventRef y.event fsm.events) x.triggers) fsm.transitions
 
 checkSrcStates : Fsm -> List (Maybe String)
 checkSrcStates fsm
