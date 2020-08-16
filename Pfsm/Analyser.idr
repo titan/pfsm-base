@@ -245,7 +245,7 @@ mutual
   expression
     = booleanLiteral <|> integerLiteral <|> realLiteral <|> stringLiteral <|> identifier <|> application
 
-compare : Rule BoolExpression
+compare : Rule TestExpression
 compare
   = terminal ("Expected comparation sexp list")
              (\x => case x of
@@ -260,28 +260,27 @@ compare
                                      SymbolAtom s => fromString s
                                      _ => Nothing)
 
-    compare' : Rule BoolExpression
+    compare' : Rule TestExpression
     compare' = do
       op <- operation
       lexp <- expression
       rexp <- expression
       pure (CompareExpression op lexp rexp)
 
-primitiveBool : Rule BoolExpression
+primitiveBool : Rule TestExpression
 primitiveBool
   = terminal ("Expected sexp list of application or identifier or bool")
              (\x => case x of
-                         SymbolAtom "true" => Just (PrimitiveBoolExpression (BooleanExpression True))
-                         SymbolAtom "false" => Just (PrimitiveBoolExpression (BooleanExpression False))
-                         SymbolAtom i => Just (PrimitiveBoolExpression (IdentifyExpression i))
-                         SExpList ss => case parse application ss of
-                                             Left _ => Nothing
-                                             Right (result, _) => Just (PrimitiveBoolExpression result)
+                         SymbolAtom "true" => Just (PrimitiveTestExpression (BooleanExpression True))
+                         SymbolAtom "false" => Just (PrimitiveTestExpression (BooleanExpression False))
+                         SymbolAtom i => Just (PrimitiveTestExpression (IdentifyExpression i))
+                         SExpList _ => case parse application [x] of
+                                                 Left _ => Nothing
+                                                 Right (result, _) => Just (PrimitiveTestExpression result)
                          _ => Nothing)
 
 mutual
-
-  unaryBool : Rule BoolExpression
+  unaryBool : Rule TestExpression
   unaryBool
     = terminal ("Expected unary bool sexp list")
                (\x => case x of
@@ -293,17 +292,16 @@ mutual
       operation : Rule UnaryBoolOperation
       operation = terminal ("Expected " ++ (bold "not"))
                            (\x => case x of
-                                       SymbolAtom s => fromString s
+                                       SymbolAtom "not" => Just NotBoolOperation
                                        _ => Nothing)
 
-      unaryBool' : Rule BoolExpression
+      unaryBool' : Rule TestExpression
       unaryBool' = do
         op <- operation
-        exp <- bool
-        pure (UnaryBoolExpression op exp)
+        exp <- testExpression
+        pure (UnaryTestExpression op exp)
 
-
-  binaryBool : Rule BoolExpression
+  binaryBool : Rule TestExpression
   binaryBool
     = terminal ("Expected binary bool sexp list")
                (\x => case x of
@@ -315,18 +313,19 @@ mutual
       operation : Rule BinaryBoolOperation
       operation = terminal ("Expected " ++ (bold "and") ++ "/" ++ (bold "or"))
                            (\x => case x of
-                                       SymbolAtom s => fromString s
+                                       SymbolAtom "and" => Just AndBoolOperation
+                                       SymbolAtom "or" => Just OrBoolOperation
                                        _ => Nothing)
 
-      binaryBool' : Rule BoolExpression
+      binaryBool' : Rule TestExpression
       binaryBool' = do
         op <- operation
-        lexp <- bool
-        rexp <- bool
-        pure (BinaryBoolExpression op lexp rexp)
+        lexp <- testExpression
+        rexp <- testExpression
+        pure (BinaryTestExpression op lexp rexp)
 
-  bool : Rule BoolExpression
-  bool = unaryBool <|> binaryBool <|> compare <|> primitiveBool
+  testExpression : Rule TestExpression
+  testExpression = unaryBool <|> binaryBool <|> compare <|> primitiveBool
 
 ------------
 -- Action --
@@ -462,7 +461,7 @@ fromTo
       d <- anySymbol
       pure (s, d)
 
-guard : Rule BoolExpression
+guard : Rule TestExpression
 guard
   = terminal ("Expected where sexp")
              (\x => case x of
@@ -471,10 +470,10 @@ guard
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    guard' : Rule BoolExpression
+    guard' : Rule TestExpression
     guard' = do
       symbol "where"
-      b <- bool
+      b <- testExpression
       pure b
 
 trigger : Rule Trigger
@@ -556,8 +555,7 @@ fsm
                        ((fst . snd . snd) $ unzipItems is ([], [], [], [], [], []))
                        ((fst . snd . snd . snd) $ unzipItems is ([], [], [], [], [], []))
                        ((fst . snd . snd . snd . snd) $ unzipItems is ([], [], [], [], [], []))
-                       (toMaybe ((snd . snd . snd . snd . snd) $ unzipItems is ([], [], [], [], [], [])))
-                       )
+                       (toMaybe ((snd . snd . snd . snd . snd) $ unzipItems is ([], [], [], [], [], []))))
 
 ---------
 -- API --

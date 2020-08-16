@@ -228,28 +228,28 @@ namespace CompareOperation
   fromString _    = Nothing
 
 public export
-data BoolExpression = PrimitiveBoolExpression Expression
-                    | BinaryBoolExpression BinaryBoolOperation BoolExpression BoolExpression
-                    | UnaryBoolExpression UnaryBoolOperation BoolExpression
+data TestExpression = PrimitiveTestExpression Expression
+                    | BinaryTestExpression BinaryBoolOperation TestExpression TestExpression
+                    | UnaryTestExpression UnaryBoolOperation TestExpression
                     | CompareExpression CompareOperation Expression Expression
 
 export
-Show BoolExpression where
-  show (PrimitiveBoolExpression e)     = show e
-  show (BinaryBoolExpression op e1 e2) = "(" ++ (show op) ++ " " ++ (show e1) ++ " " ++ (show e2) ++ ")"
-  show (UnaryBoolExpression op e)      = "(" ++ (show op) ++ " " ++ (show e) ++ ")"
+Show TestExpression where
+  show (PrimitiveTestExpression e)     = show e
+  show (BinaryTestExpression op e1 e2) = "(" ++ (show op) ++ " " ++ (show e1) ++ " " ++ (show e2) ++ ")"
+  show (UnaryTestExpression op e)      = "(" ++ (show op) ++ " " ++ (show e) ++ ")"
   show (CompareExpression op e1 e2)    = "(" ++ (show op) ++ " " ++ (show e1) ++ " " ++ (show e2) ++ ")"
 
 export
-Eq BoolExpression where
-  (==) (PrimitiveBoolExpression e1)       (PrimitiveBoolExpression e2)       = e1 == e2
-  (==) (BinaryBoolExpression op1 ea1 eb1) (BinaryBoolExpression op2 ea2 eb2) = (op1 == op2) && ((ea1 == ea2) || (ea1 == eb2) || (eb1 == eb2) || (eb1 == ea2))
-  (==) (UnaryBoolExpression op1 e1)       (UnaryBoolExpression op2 e2)       = (op1 == op2) && (e1 == e2)
+Eq TestExpression where
+  (==) (PrimitiveTestExpression e1)       (PrimitiveTestExpression e2)       = e1 == e2
+  (==) (BinaryTestExpression op1 ea1 eb1) (BinaryTestExpression op2 ea2 eb2) = (op1 == op2) && ((ea1 == ea2) || (ea1 == eb2) || (eb1 == eb2) || (eb1 == ea2))
+  (==) (UnaryTestExpression op1 e1)       (UnaryTestExpression op2 e2)       = (op1 == op2) && (e1 == e2)
   (==) (CompareExpression op1 ea1 eb1)    (CompareExpression op2 ea2 eb2)    = (op1 == op2) && (ea1 == ea2) && (eb1 == eb2)
   (==) _                                  _                                  = False
 
 export
-Ord BoolExpression where
+Ord TestExpression where
   compare b1 b2 = compare (show b1) (show b2)
 
 public export
@@ -361,15 +361,15 @@ record Trigger where
   constructor MkTrigger
   participant: ParticipantRef
   event: EventRef
-  guard: Maybe BoolExpression
+  guard: Maybe TestExpression
   actions: Maybe (List Action)
 
 export
 Show Trigger where
   show (MkTrigger p e (Just g) (Just as)) = "(trigger " ++ p ++ " " ++ e ++ " (where " ++ (show g) ++ ") (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
   show (MkTrigger p e Nothing  (Just as)) = "(trigger " ++ p ++ " " ++ e ++ " (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
-  show (MkTrigger p e (Just g) Nothing) = "(trigger " ++ p ++ " " ++ e ++ " (where " ++ (show g) ++ "))"
-  show (MkTrigger p e Nothing  Nothing) = "(trigger " ++ p ++ " " ++ e ++ ")"
+  show (MkTrigger p e (Just g) Nothing)   = "(trigger " ++ p ++ " " ++ e ++ " (where " ++ (show g) ++ "))"
+  show (MkTrigger p e Nothing  Nothing)   = "(trigger " ++ p ++ " " ++ e ++ ")"
 
 export
 Eq Trigger where
