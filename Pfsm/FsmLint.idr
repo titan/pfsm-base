@@ -1,4 +1,4 @@
-module Main
+module Pfsm.FsmLint
 
 import System
 import System.File

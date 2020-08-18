@@ -1,6 +1,7 @@
 module Pfsm
 
 import Data.List
+import Data.List1
 import Data.SortedSet
 import Data.Strings
 import Data.Vect
@@ -26,7 +27,7 @@ namespace Data.Strings
 
   export
   camelize : String -> String
-  camelize s = foldl (\acc, x => acc ++ capital x) "" (split (== '-') s)
+  camelize s = foldl (\acc, x => acc ++ capital x) "" (Data.List1.toList (split (== '-') s))
 
   export
   replaceAll : String -> String -> String -> String
