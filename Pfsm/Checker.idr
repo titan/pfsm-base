@@ -1,8 +1,8 @@
 module Pfsm.Checker
 
 import Data.List
+import Pfsm
 import Pfsm.Data
-import Pfsm.Utility
 
 -------------
 -- Utility --

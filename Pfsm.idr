@@ -1,4 +1,4 @@
-module Pfsm.Utility
+module Pfsm
 
 import Data.List
 import Data.SortedSet
