@@ -91,25 +91,26 @@ derefState ref (x :: xs) = if name x == ref
                               then Just x
                               else derefState ref xs
 
-liftStates : List State -> List Transition -> (SortedSet State, SortedSet State) -> (SortedSet State, SortedSet State)
-liftStates ss []                              acc          = acc
-liftStates ss ((MkTransition sr dr _ ) :: xs) (srcs, dsts) = liftStates ss xs ( case derefState sr ss of
-                                                                                     Just s => insert s srcs
-                                                                                     Nothing => srcs
-                                                                              , case derefState dr ss of
-                                                                                     Just s => insert s dsts
-                                                                                     Nothing => dsts
-                                                                              )
+liftFromAndToStates : List State -> List Transition -> (SortedSet State, SortedSet State) -> (SortedSet State, SortedSet State)
+liftFromAndToStates ss []                              acc          = acc
+liftFromAndToStates ss ((MkTransition sr dr _ ) :: xs) (srcs, dsts) = liftFromAndToStates ss xs ( case derefState sr ss of
+                                                                                                       Just s => insert s srcs
+                                                                                                       Nothing => srcs
+                                                                                                , case derefState dr ss of
+                                                                                                       Just s => insert s dsts
+                                                                                                       Nothing => dsts
+                                                                                                )
 
 export
 startState : Fsm -> Maybe State
 startState fsm
-  = let ss = (Data.SortedSet.toList . fst) $ liftStates (states fsm) (transitions fsm) (empty, empty) in
-        case ss of
+  = let (fs, ds) = liftFromAndToStates (states fsm) (transitions fsm) (empty, empty) in
+        case Data.SortedSet.toList (difference fs ds) of
              [] => Nothing
              (x :: xs) => Just x
 
 export
 stopState : Fsm -> SortedSet State
 stopState fsm
-  = snd $ liftStates (states fsm) (transitions fsm) (empty, empty)
+  = let (fs, ds) = liftFromAndToStates (states fsm) (transitions fsm) (empty, empty) in
+        difference ds fs
