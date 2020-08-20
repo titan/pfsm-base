@@ -47,7 +47,7 @@ namespace Data.List
     = index' a xs Z
     where
       index' : Eq elem => elem -> List elem -> Nat -> Maybe Nat
-      index' a [] _        = Nothing
+      index' a []        _ = Nothing
       index' a (x :: xs) i = if a == x
                                 then Just i
                                 else index' a xs (S i)

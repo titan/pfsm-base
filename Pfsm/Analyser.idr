@@ -84,10 +84,10 @@ meta
                          _ => Nothing)
   where
     meta' : Rule Meta
-    meta' = do
-      k <- anyString
-      v <- choose anyString meta
-      pure (MkMeta k v)
+    meta'
+      = do k <- anyString
+           v <- choose anyString meta
+           pure (MkMeta k v)
 
 ----------
 -- Type --
@@ -103,22 +103,29 @@ tipe = primtype <|> list <|> dict
                                 _ => Nothing)
 
     primtype : Rule Tipe
-    primtype = do
-      x <- prim
-      pure (TPrimType x)
+    primtype
+      = do x <- prim
+           pure (TPrimType x)
 
     list : Rule Tipe
-    list = do
-      string "list"
-      t <- tipe
-      pure (TList t)
+    list
+      = terminal ("Expected " ++ (bold "list") ++ " sexp")
+                 (\x => case x of
+                             SExpList ((SymbolAtom "list") :: ss) => case parse tipe ss of
+                                                                          Left _ => Nothing
+                                                                          Right (t, _) => Just (TList t)
+                             _ => Nothing)
 
     dict : Rule Tipe
-    dict = do
-      string "dict"
-      p <- prim
-      t <- tipe
-      pure (TDict p t)
+    dict
+      = terminal ("Expected " ++ (bold "dict") ++ " sexp")
+                 (\x => case x of
+                             SExpList ((SymbolAtom "dict") :: ss) => case parse prim ss of
+                                                                          Left _ => Nothing
+                                                                          Right (p, sss) => case parse tipe sss of
+                                                                                                 Left _ => Nothing
+                                                                                                 Right (t, _) => Just (TDict p t)
+                             _ => Nothing)
 
 thz : Rule Parameter
 thz
@@ -135,7 +142,7 @@ thz
       t <- tipe
       n <- anySymbol
       ms <- optional $ many meta
-      pure (n, t , ms)
+      pure (n, t, ms)
 
 -----------
 -- Model --
