@@ -268,7 +268,8 @@ Eq Action where
 
 export
 Ord Action where
-  compare a1 a2 = compare (show a1) (show a2)
+  compare (OutputAction n1 _) (OutputAction n2 _) = compare n1 n2
+  compare a1                  a2                  = compare (show a1) (show a2)
 
 public export
 StateRef : Type
@@ -300,6 +301,10 @@ export
 Show Meta where
   show (MkMeta k (Left s))  = "(meta \"" ++ k ++ "\" \"" ++ s ++ "\")"
   show (MkMeta k (Right m)) = "(meta \"" ++ k ++ "\" " ++ show (m) ++ ")"
+
+export
+Ord Meta where
+  compare m1 m2 = compare (show m1) (show m2)
 
 public export
 record Participant where

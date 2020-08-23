@@ -2,11 +2,16 @@ module Pfsm
 
 import Data.List
 import Data.List1
+import Data.SortedMap
 import Data.SortedSet
 import Data.Strings
 import Data.Vect
 
 import Pfsm.Data
+
+-------------
+-- Utility --
+-------------
 
 export
 repeat : String -> Nat -> String
@@ -16,6 +21,10 @@ repeat str cnt
     repeat' : String -> String -> Nat -> String
     repeat' acc _   0   = acc
     repeat' acc str cnt = repeat' (acc ++ str) str (minus cnt 1)
+
+export
+indent : Nat -> String
+indent idt = repeat " " idt
 
 namespace Data.Strings
   export
@@ -78,12 +87,70 @@ namespace Data.Vect
   join sep [x]       = x
   join sep (x :: xs) = foldl (\acc, y => acc ++ sep ++ y) x xs
 
+-----------
+-- Event --
+-----------
+
 export
 derefEvent : EventRef -> List Event -> Maybe Event
 derefEvent _   []        = Nothing
 derefEvent ref (x :: xs) = if name x == ref
                               then Just x
                               else derefEvent ref xs
+
+export
+parametersOfEvents : List Event -> List Parameter
+parametersOfEvents = (nubBy (\x, y => fst x == fst y)) . flatten . (map params)
+
+----------
+-- Tipe --
+----------
+
+export
+constructTArrow : List Tipe -> Tipe -> Tipe
+constructTArrow []        acc = acc
+constructTArrow (x :: xs) acc = constructTArrow xs $ (TArrow x acc)
+
+export
+rootEnv : Fsm -> SortedMap Expression Tipe
+rootEnv fsm
+  = let eps = parametersOfEvents fsm.events
+        env' = foldl (\acc, (n, t, _) => insert (IdentifyExpression ("@" ++ n)) t acc) Data.SortedMap.empty fsm.model
+        env = foldl (\acc, (n, t, _) => insert (IdentifyExpression n) t acc) env' eps in
+        env
+
+----------------
+-- Expression --
+----------------
+
+export
+applicationExpressionFilter : Expression -> Bool
+applicationExpressionFilter (ApplicationExpression _ _) = True
+applicationExpressionFilter _                           = False
+
+export
+expressionsOfAction : Action -> List Expression
+expressionsOfAction (AssignmentAction l r) = [l, r]
+expressionsOfAction (OutputAction _ es)    = es
+
+--------------------
+-- TestExpression --
+--------------------
+
+export
+expressionsOfTestExpression : TestExpression -> List Expression
+expressionsOfTestExpression e
+  = SortedSet.toList $ expressionsOfTestExpression' e SortedSet.empty
+  where
+    expressionsOfTestExpression' : TestExpression -> SortedSet Expression -> SortedSet Expression
+    expressionsOfTestExpression' (PrimitiveTestExpression e)  acc = insert e acc
+    expressionsOfTestExpression' (BinaryTestExpression _ l r) acc = expressionsOfTestExpression' l $ expressionsOfTestExpression' r acc
+    expressionsOfTestExpression' (UnaryTestExpression _ t)    acc = expressionsOfTestExpression' t acc
+    expressionsOfTestExpression' (CompareExpression  _ le re) acc = insert le $ insert re acc
+
+-----------
+-- State --
+-----------
 
 export
 derefState : StateRef -> List State -> Maybe State
@@ -115,3 +182,77 @@ stopState : Fsm -> SortedSet State
 stopState fsm
   = let (fs, ds) = liftFromAndToStates (states fsm) (transitions fsm) (empty, empty) in
         difference ds fs
+
+------------
+-- Action --
+------------
+
+export
+actionsOfTrigger : Trigger -> List Action
+actionsOfTrigger (MkTrigger _ _ _ (Just as)) = as
+actionsOfTrigger (MkTrigger _ _ _ Nothing)   = []
+
+export
+actionsOfTransition : Transition -> List (List Action)
+actionsOfTransition t
+  = nub $ filter (\x => length x > 0) $ map actionsOfTrigger t.triggers
+
+export
+actionsOfTransitions : List Transition -> List (List Action)
+actionsOfTransitions ts
+  = nub $ flatten $ map actionsOfTransition ts
+
+export
+actionsOfState : (State -> Maybe (List Action)) -> State -> List Action
+actionsOfState f s
+  = fromMaybe [] (f s)
+
+export
+actionsOfStates : (State -> Maybe (List Action)) -> List State -> List (List Action)
+actionsOfStates f ss
+  = nub $ filter (\x => length x > 0) $ map (actionsOfState f) ss
+--  = Data.SortedSet.toList $ foldl (\acc, x => insert x acc) empty $ filter (\x => length x > 0) $ map (actionsOfState f) ss
+
+export
+outputActionFilter : Action -> Bool
+outputActionFilter (OutputAction _ _) = True
+outputActionFilter _                  = False
+
+export
+outputActions : Fsm -> List Action
+outputActions fsm
+  = let as = flatten $ map ((filter outputActionFilter) . flatten) [ actionsOfTransitions fsm.transitions
+                                                                   , actionsOfStates (\x => x.onEnter) fsm.states
+                                                                   , actionsOfStates (\x => x.onExit) fsm.states
+                                                                   ] in
+        nubBy outputActionEq as
+  where
+    outputActionEq : Action -> Action -> Bool
+    outputActionEq (OutputAction n1 _) (OutputAction n2 _) = n1 == n2
+    outputActionEq _                   _                   = False
+
+export
+assignmentActionFilter : Action -> Bool
+assignmentActionFilter (AssignmentAction _ _) = True
+assignmentActionFilter _                      = False
+
+export
+assignmentActions : Fsm -> List Action
+assignmentActions fsm
+  = let as = flatten $ map ((filter assignmentActionFilter) . flatten ) [ actionsOfTransitions fsm.transitions
+                                                                        , actionsOfStates (\x => x.onEnter) fsm.states
+                                                                        , actionsOfStates (\x => x.onExit) fsm.states
+                                                                        ] in
+        nubBy assignmentActionEq as
+  where
+    assignmentActionEq : Action -> Action -> Bool
+    assignmentActionEq (AssignmentAction l1 r1) (AssignmentAction l2 r2) = l1 == l2 && r1 == r2
+    assignmentActionEq _                        _                        = False
+
+----------------
+-- Transition --
+----------------
+
+export
+guardsOfTransition : Transition -> List TestExpression
+guardsOfTransition t = Data.SortedSet.toList $ foldl (\acc, (MkTrigger _ _ x _) => case x of Nothing => acc; Just g => insert g acc) empty t.triggers
