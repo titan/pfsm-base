@@ -288,19 +288,37 @@ MetaKey: Type
 MetaKey = String
 
 public export
+data MetaValue = MVString String
+               | MVList (List String)
+               | MVDict (SortedMap String String)
+
+export
+Show MetaValue where
+  show (MVString s) = show s
+  show (MVList vs)  = "(list " ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" vs) ++ ")"
+  show (MVDict vs)  = "(dict " ++ (foldl (\acc, (x, y) => acc ++ " (" ++ (show x) ++ " " ++ (show y) ++ ")") "" (SortedMap.toList vs)) ++ ")"
+
+export
+Eq MetaValue where
+  (==) v1 v2 = (show v1) == (show v2)
+
+export
+Ord MetaValue where
+  compare v1 v2 = compare (show v1) (show v2)
+
+public export
 record Meta where
   constructor MkMeta
   key: MetaKey
-  value: Either String Meta
+  value: MetaValue
+
+export
+Show Meta where
+  show (MkMeta k v)  = "(meta " ++ (show k) ++ " " ++ (show v) ++ ")"
 
 export
 Eq Meta where
   (==) m1 m2 = (key m1) == (key m2) && (value m1) == (value m2)
-
-export
-Show Meta where
-  show (MkMeta k (Left s))  = "(meta \"" ++ k ++ "\" \"" ++ s ++ "\")"
-  show (MkMeta k (Right m)) = "(meta \"" ++ k ++ "\" " ++ show (m) ++ ")"
 
 export
 Ord Meta where
@@ -310,7 +328,7 @@ public export
 record Participant where
   constructor MkParticipant
   name: Name
-  metas: List Meta
+  metas: Maybe (List Meta)
 
 public export
 record State where
@@ -348,10 +366,11 @@ record Event where
   constructor MkEvent
   name: Name
   params: List Parameter
+  metas: Maybe (List Meta)
 
 export
 Show Event where
-  show (MkEvent n ps) = "(event " ++ n ++ (foldl (\acc, (pn, pt, pms) => acc ++ " (the " ++ (show pt) ++ " " ++ pn ++ " " ++ (show pms) ++ ")") "" ps) ++ ")"
+  show (MkEvent n ps ms) = "(event " ++ n ++ (foldl (\acc, (pn, pt, pms) => acc ++ " (the " ++ (show pt) ++ " " ++ pn ++ " " ++ (show pms) ++ ")") "" ps) ++ " " ++ (show ms) ++ ")"
 
 export
 Eq Event where

@@ -211,7 +211,6 @@ export
 actionsOfStates : (State -> Maybe (List Action)) -> List State -> List (List Action)
 actionsOfStates f ss
   = nub $ filter (\x => length x > 0) $ map (actionsOfState f) ss
---  = Data.SortedSet.toList $ foldl (\acc, x => insert x acc) empty $ filter (\x => length x > 0) $ map (actionsOfState f) ss
 
 export
 outputActionFilter : Action -> Bool

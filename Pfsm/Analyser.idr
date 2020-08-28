@@ -2,6 +2,7 @@ module Pfsm.Analyser
 
 import Control.Delayed
 import Data.List
+import Data.SortedMap
 import Text.Parser.Core
 import Text.Parser
 import Pfsm.Data
@@ -24,9 +25,6 @@ toMaybe xs = Just xs
 
 Rule : Type -> Type
 Rule ty = Grammar SExp True ty
-
-EmptyRule : Type -> Type
-EmptyRule ty = Grammar SExp False ty
 
 symbol : String -> Rule String
 symbol s
@@ -83,10 +81,61 @@ meta
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
+    mvstring : Rule MetaValue
+    mvstring
+      = do v <- anyString
+           pure (MVString v)
+
+    mvlist : Rule MetaValue
+    mvlist
+      = terminal ("Expected " ++ (bold "list") ++ " sexp")
+                 (\x => case x of
+                             SExpList ss => case parse mvlist' ss of
+                                                 Left _ => Nothing
+                                                 Right (v, _) => Just v
+                             _ => Nothing)
+      where
+        mvlist' : Rule MetaValue
+        mvlist'
+          = do symbol "list" -- must have to consume the following MANY rule
+               vs <- many anyString
+               pure (MVList vs)
+
+    mvdict : Rule MetaValue
+    mvdict
+      = terminal ("Expected " ++ (bold "dict") ++ " sexp")
+                 (\x => case x of
+                             SExpList ss => case parse mvdict' ss of
+                                                 Left _ => Nothing
+                                                 Right (v, _) => Just v
+                             _ => Nothing)
+      where
+        strtuple : Rule (String, String)
+        strtuple
+          = terminal ("Expected sexp list")
+                     (\x => case x of
+                                 SExpList ss => case parse strtuple' ss of
+                                                     Left _ => Nothing
+                                                     Right (v, _) => Just v
+                                 _ => Nothing)
+          where
+            strtuple' : Rule (String, String)
+            strtuple'
+              = do k <- anyString
+                   v <- anyString
+                   pure ((k, v))
+
+        mvdict' : Rule MetaValue
+        mvdict'
+          = do symbol "dict"
+               ts <- many strtuple
+               pure (MVDict (foldl (\acc, (x, y) => insert x y acc) SortedMap.empty ts))
+
     meta' : Rule Meta
     meta'
-      = do k <- anyString
-           v <- choose anyString meta
+      = do symbol "meta"
+           k <- anyString
+           v <- (mvstring <|> mvlist <|> mvdict)
            pure (MkMeta k v)
 
 ----------
@@ -137,12 +186,12 @@ thz
                          _ => Nothing)
   where
     thz' : Rule Parameter
-    thz' = do
-      symbol "the"
-      t <- tipe
-      n <- anySymbol
-      ms <- optional $ many meta
-      pure (n, t, ms)
+    thz'
+      = do symbol "the"
+           t <- tipe
+           n <- anySymbol
+           ms <- many meta
+           pure (n, t, if length ms > Z then Just ms else Nothing)
 
 -----------
 -- Model --
@@ -158,15 +207,14 @@ model
                          _ => Nothing)
   where
     model' : Rule (List Parameter)
-    model' = do
-      symbol "model"
-      xs <- many thz
-      pure xs
+    model'
+      = do symbol "model"
+           xs <- many thz
+           pure xs
 
 -----------
 -- Event --
 -----------
-
 event : Rule Event
 event
   = terminal ("Expected event sexp")
@@ -177,11 +225,12 @@ event
                          _ => Nothing)
   where
     event' : Rule Event
-    event' = do
-      symbol "event"
-      n <- anySymbol
-      xs <- many thz
-      pure (MkEvent n xs)
+    event'
+      = do symbol "event"
+           n <- anySymbol
+           xs <- many thz
+           ms <- many meta
+           pure (MkEvent n xs (if length ms > Z then Just ms else Nothing))
 
 -----------------
 -- Participant --
@@ -197,40 +246,40 @@ participant
                          _ => Nothing)
   where
     participant' : Rule Participant
-    participant' = do
-      symbol "participant"
-      n <- anySymbol
-      ms <- many meta
-      pure (MkParticipant n ms)
+    participant'
+      = do symbol "participant"
+           n <- anySymbol
+           ms <- many meta
+           pure (MkParticipant n (if length ms > Z then Just ms else Nothing))
 
 ----------------
 -- Expression --
 ----------------
 
 identifier : Rule Expression
-identifier = do
-  x <- anySymbol
-  pure (IdentifyExpression x)
+identifier
+  = do x <- anySymbol
+       pure (IdentifyExpression x)
 
 integerLiteral : Rule Expression
-integerLiteral = do
-  x <- integer
-  pure (IntegerLiteralExpression x)
+integerLiteral
+  = do x <- integer
+       pure (IntegerLiteralExpression x)
 
 realLiteral : Rule Expression
-realLiteral = do
-  x <- real
-  pure (RealLiteralExpression x)
+realLiteral
+  = do x <- real
+       pure (RealLiteralExpression x)
 
 stringLiteral : Rule Expression
-stringLiteral = do
-  x <- anyString
-  pure (StringLiteralExpression x)
+stringLiteral
+  = do x <- anyString
+       pure (StringLiteralExpression x)
 
 booleanLiteral : Rule Expression
-booleanLiteral = do
-  x <- (symbol "true") <|> (symbol "false")
-  pure (BooleanExpression (toBool x))
+booleanLiteral
+  = do x <- (symbol "true") <|> (symbol "false")
+       pure (BooleanExpression (toBool x))
 
 mutual
   application : Rule Expression
@@ -243,10 +292,10 @@ mutual
                            _ => Nothing)
     where
       application' : Rule Expression
-      application' = do
-        fun <- anySymbol
-        args <- many expression
-        pure (ApplicationExpression fun args)
+      application'
+        = do fun <- anySymbol
+             args <- many expression
+             pure (ApplicationExpression fun args)
 
   expression : Rule Expression
   expression
@@ -268,11 +317,11 @@ compare
                                      _ => Nothing)
 
     compare' : Rule TestExpression
-    compare' = do
-      op <- operation
-      lexp <- expression
-      rexp <- expression
-      pure (CompareExpression op lexp rexp)
+    compare'
+      = do op <- operation
+           lexp <- expression
+           rexp <- expression
+           pure (CompareExpression op lexp rexp)
 
 primitiveBool : Rule TestExpression
 primitiveBool
@@ -303,10 +352,10 @@ mutual
                                        _ => Nothing)
 
       unaryBool' : Rule TestExpression
-      unaryBool' = do
-        op <- operation
-        exp <- testExpression
-        pure (UnaryTestExpression op exp)
+      unaryBool'
+        = do op <- operation
+             exp <- testExpression
+             pure (UnaryTestExpression op exp)
 
   binaryBool : Rule TestExpression
   binaryBool
@@ -325,11 +374,11 @@ mutual
                                        _ => Nothing)
 
       binaryBool' : Rule TestExpression
-      binaryBool' = do
-        op <- operation
-        lexp <- testExpression
-        rexp <- testExpression
-        pure (BinaryTestExpression op lexp rexp)
+      binaryBool'
+        = do op <- operation
+             lexp <- testExpression
+             rexp <- testExpression
+             pure (BinaryTestExpression op lexp rexp)
 
   testExpression : Rule TestExpression
   testExpression = unaryBool <|> binaryBool <|> compare <|> primitiveBool
@@ -349,19 +398,17 @@ action
   where
     assignment : Rule Action
     assignment
-      = do
-        symbol "set!"
-        i <- identifier
-        e <- expression
-        pure (AssignmentAction i e)
+      = do symbol "set!"
+           i <- identifier
+           e <- expression
+           pure (AssignmentAction i e)
 
     output : Rule Action
     output
-      = do
-        symbol "output"
-        n  <- anySymbol
-        es <- many expression
-        pure (OutputAction n es)
+      = do symbol "output"
+           n  <- anySymbol
+           es <- many expression
+           pure (OutputAction n es)
 
     action' : Rule Action
     action' = assignment <|> output
@@ -380,10 +427,10 @@ onEnter
                          _ => Nothing)
   where
     onEnter' : Rule (List Action)
-    onEnter' = do
-      symbol "on-enter"
-      xs <- many action
-      pure xs
+    onEnter'
+      = do symbol "on-enter"
+           xs <- many action
+           pure xs
 
 onExit : Rule (List Action)
 onExit
@@ -395,10 +442,10 @@ onExit
                          _ => Nothing)
   where
     onExit' : Rule (List Action)
-    onExit' = do
-      symbol "on-exit"
-      xs <- many action
-      pure xs
+    onExit'
+      = do symbol "on-exit"
+           xs <- many action
+           pure xs
 
 state : Rule State
 state
@@ -424,14 +471,14 @@ state
     toMaybeElem (x :: xs) = Just x
 
     state' : Rule State
-    state' = do
-      symbol "state"
-      n <- anySymbol
-      is <- many item
-      pure (MkState n
-                    (toMaybeElem (fst $ unzipItems is ([], [], [])))
-                    (toMaybeElem ((fst . snd) $ unzipItems is ([], [], [])))
-                    (toMaybe ((snd . snd) $ unzipItems is ([], [], []))))
+    state'
+      = do symbol "state"
+           n <- anySymbol
+           is <- many item
+           pure (MkState n
+                         (toMaybeElem (fst $ unzipItems is ([], [], [])))
+                         (toMaybeElem ((fst . snd) $ unzipItems is ([], [], [])))
+                         (toMaybe ((snd . snd) $ unzipItems is ([], [], []))))
 
 ----------------
 -- Transition --
@@ -447,10 +494,10 @@ transitionAction
                          _ => Nothing)
   where
     transitionAction' : Rule (List Action)
-    transitionAction' = do
-      symbol "action"
-      xs <- many action
-      pure xs
+    transitionAction'
+      = do symbol "action"
+           xs <- many action
+           pure xs
 
 fromTo : Rule (StateRef, StateRef)
 fromTo
@@ -462,11 +509,11 @@ fromTo
                          _ => Nothing)
   where
     fromTo' : Rule (StateRef, StateRef)
-    fromTo' = do
-      symbol "from-to"
-      s <- anySymbol
-      d <- anySymbol
-      pure (s, d)
+    fromTo'
+      = do symbol "from-to"
+           s <- anySymbol
+           d <- anySymbol
+           pure (s, d)
 
 guard : Rule TestExpression
 guard
@@ -478,10 +525,10 @@ guard
                          _ => Nothing)
   where
     guard' : Rule TestExpression
-    guard' = do
-      symbol "where"
-      b <- testExpression
-      pure b
+    guard'
+      = do symbol "where"
+           b <- testExpression
+           pure b
 
 trigger : Rule Trigger
 trigger
@@ -493,13 +540,13 @@ trigger
                          _ => Nothing)
   where
     trigger' : Rule Trigger
-    trigger' = do
-      symbol "trigger"
-      p <- anySymbol
-      e <- anySymbol
-      g <- optional guard
-      as <- optional transitionAction
-      pure (MkTrigger p e g as)
+    trigger'
+      = do symbol "trigger"
+           p <- anySymbol
+           e <- anySymbol
+           g <- optional guard
+           as <- optional transitionAction
+           pure (MkTrigger p e g as)
 
 transition : Rule Transition
 transition
@@ -511,11 +558,11 @@ transition
                          _ => Nothing)
   where
     transition' : Rule Transition
-    transition' = do
-      symbol "transition"
-      sd <- fromTo
-      ts <- many trigger
-      pure (MkTransition (fst sd) (snd sd) ts)
+    transition'
+      = do symbol "transition"
+           sd <- fromTo
+           ts <- many trigger
+           pure (MkTransition (fst sd) (snd sd) ts)
 
 
 ---------
@@ -546,9 +593,9 @@ fsm
                                                                                                                             Right m' => unzipItems xs (m, ps, es, ss, ts, m' :: ms)
 
     item : Rule (Either (List Parameter) (Either Participant (Either Event (Either State (Either Transition Meta)))))
-    item = do
-      x <- choose model (choose participant (choose event (choose state (choose transition meta))))
-      pure x
+    item
+      = do x <- choose model (choose participant (choose event (choose state (choose transition meta))))
+           pure x
 
     fsm' : Rule Fsm
     fsm'
