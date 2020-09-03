@@ -92,13 +92,6 @@ namespace Data.Vect
 -----------
 
 export
-derefEvent : EventRef -> List Event -> Maybe Event
-derefEvent _   []        = Nothing
-derefEvent ref (x :: xs) = if name x == ref
-                              then Just x
-                              else derefEvent ref xs
-
-export
 parametersOfEvents : List Event -> List Parameter
 parametersOfEvents = (nubBy (\x, y => fst x == fst y)) . flatten . (map params)
 
@@ -152,27 +145,14 @@ expressionsOfTestExpression e
 -- State --
 -----------
 
-export
-derefState : StateRef -> List State -> Maybe State
-derefState _   []        = Nothing
-derefState ref (x :: xs) = if name x == ref
-                              then Just x
-                              else derefState ref xs
-
-liftFromAndToStates : List State -> List Transition -> (SortedSet State, SortedSet State) -> (SortedSet State, SortedSet State)
-liftFromAndToStates ss []                              acc          = acc
-liftFromAndToStates ss ((MkTransition sr dr _ ) :: xs) (srcs, dsts) = liftFromAndToStates ss xs ( case derefState sr ss of
-                                                                                                       Just s => insert s srcs
-                                                                                                       Nothing => srcs
-                                                                                                , case derefState dr ss of
-                                                                                                       Just s => insert s dsts
-                                                                                                       Nothing => dsts
-                                                                                                )
+liftFromAndToStates : List Transition -> (SortedSet State, SortedSet State) -> (SortedSet State, SortedSet State)
+liftFromAndToStates []                              acc          = acc
+liftFromAndToStates ((MkTransition s d _) :: xs) (srcs, dsts) = liftFromAndToStates xs (insert s srcs, insert d dsts)
 
 export
 startState : Fsm -> Maybe State
 startState fsm
-  = let (fs, ds) = liftFromAndToStates (states fsm) (transitions fsm) (empty, empty) in
+  = let (fs, ds) = liftFromAndToStates (transitions fsm) (empty, empty) in
         case Data.SortedSet.toList (difference fs ds) of
              [] => Nothing
              (x :: xs) => Just x
@@ -180,7 +160,7 @@ startState fsm
 export
 stopState : Fsm -> SortedSet State
 stopState fsm
-  = let (fs, ds) = liftFromAndToStates (states fsm) (transitions fsm) (empty, empty) in
+  = let (fs, ds) = liftFromAndToStates (transitions fsm) (empty, empty) in
         difference ds fs
 
 ------------

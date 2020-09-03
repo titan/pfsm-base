@@ -272,18 +272,6 @@ Ord Action where
   compare a1                  a2                  = compare (show a1) (show a2)
 
 public export
-StateRef : Type
-StateRef = String
-
-public export
-EventRef : Type
-EventRef = String
-
-public export
-ParticipantRef : Type
-ParticipantRef = String
-
-public export
 MetaKey: Type
 MetaKey = String
 
@@ -329,6 +317,10 @@ record Participant where
   constructor MkParticipant
   name: Name
   metas: Maybe (List Meta)
+
+export
+Show Participant where
+  show (MkParticipant n ms) = "(participant " ++ n ++ " " ++ (show ms) ++ ")"
 
 public export
 record State where
@@ -383,17 +375,17 @@ Ord Event where
 public export
 record Trigger where
   constructor MkTrigger
-  participant: ParticipantRef
-  event: EventRef
+  participant: Participant
+  event: Event
   guard: Maybe TestExpression
   actions: Maybe (List Action)
 
 export
 Show Trigger where
-  show (MkTrigger p e (Just g) (Just as)) = "(trigger " ++ p ++ " " ++ e ++ " (where " ++ (show g) ++ ") (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
-  show (MkTrigger p e Nothing  (Just as)) = "(trigger " ++ p ++ " " ++ e ++ " (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
-  show (MkTrigger p e (Just g) Nothing)   = "(trigger " ++ p ++ " " ++ e ++ " (where " ++ (show g) ++ "))"
-  show (MkTrigger p e Nothing  Nothing)   = "(trigger " ++ p ++ " " ++ e ++ ")"
+  show (MkTrigger p e (Just g) (Just as)) = "(trigger " ++ (show p) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ ") (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
+  show (MkTrigger p e Nothing  (Just as)) = "(trigger " ++ (show p) ++ " " ++ (show e) ++ " (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
+  show (MkTrigger p e (Just g) Nothing)   = "(trigger " ++ (show p) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ "))"
+  show (MkTrigger p e Nothing  Nothing)   = "(trigger " ++ (show p) ++ " " ++ (show e) ++ ")"
 
 export
 Eq Trigger where
@@ -406,13 +398,13 @@ Ord Trigger where
 public export
 record Transition where
   constructor MkTransition
-  src: StateRef
-  dst: StateRef
+  src: State
+  dst: State
   triggers: List Trigger
 
 export
 Show Transition where
-  show (MkTransition src dst triggers) = "(transition (from-to " ++ src ++ " " ++ dst ++ ")" ++ (foldl (\acc,x => acc ++ " " ++ (show x)) "" triggers) ++ ")"
+  show (MkTransition src dst triggers) = "(transition (from-to " ++ (show src) ++ " " ++ (show dst) ++ ")" ++ (foldl (\acc,x => acc ++ " " ++ (show x)) "" triggers) ++ ")"
 
 export
 Eq Transition where

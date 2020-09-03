@@ -2,11 +2,34 @@ module Pfsm.Analyser
 
 import Control.Delayed
 import Data.List
+import Data.Maybe
 import Data.SortedMap
 import Text.Parser.Core
 import Text.Parser
 import Pfsm.Data
 import Pfsm.Parser
+
+StateRef : Type
+StateRef = String
+
+EventRef : Type
+EventRef = String
+
+ParticipantRef : Type
+ParticipantRef = String
+
+record TriggerShadow where
+  constructor MkTriggerShadow
+  participant: ParticipantRef
+  event: EventRef
+  guard: Maybe TestExpression
+  actions: Maybe (List Action)
+
+record TransitionShadow where
+  constructor MkTransitionShadow
+  src: StateRef
+  dst: StateRef
+  triggers: List TriggerShadow
 
 ------------
 -- Helper --
@@ -18,6 +41,28 @@ bold str = "\ESC[1m" ++ str ++ "\ESC[0m"
 toMaybe : List a -> Maybe (List a)
 toMaybe [] = Nothing
 toMaybe xs = Just xs
+
+derefParticipant : ParticipantRef -> List Participant -> Maybe Participant
+derefParticipant _   []        = Nothing
+derefParticipant ref (x :: xs) = if name x == ref
+                              then Just x
+                              else derefParticipant ref xs
+
+derefEvent : EventRef -> List Event -> Maybe Event
+derefEvent _   []        = Nothing
+derefEvent ref (x :: xs) = if name x == ref
+                              then Just x
+                              else derefEvent ref xs
+
+derefState : StateRef -> List State -> Maybe State
+derefState _   []        = Nothing
+derefState ref (x :: xs) = if name x == ref
+                              then Just x
+                              else derefState ref xs
+
+liftMaybeList : List (Maybe a) -> Maybe (List a)
+liftMaybeList [] = Nothing
+liftMaybeList xs = Just $ foldl (\acc, x => case x of Just x' => x' :: acc; Nothing => acc) [] xs
 
 --------------
 -- Analyser --
@@ -475,10 +520,11 @@ state
       = do symbol "state"
            n <- anySymbol
            is <- many item
+           let uz = unzipItems is ([], [], [])
            pure (MkState n
-                         (toMaybeElem (fst $ unzipItems is ([], [], [])))
-                         (toMaybeElem ((fst . snd) $ unzipItems is ([], [], [])))
-                         (toMaybe ((snd . snd) $ unzipItems is ([], [], []))))
+                         (toMaybeElem (fst uz))
+                         (toMaybeElem ((fst . snd) uz))
+                         (toMaybe ((snd . snd) uz)))
 
 ----------------
 -- Transition --
@@ -530,7 +576,7 @@ guard
            b <- testExpression
            pure b
 
-trigger : Rule Trigger
+trigger : Rule TriggerShadow
 trigger
   = terminal ("Expected trigger sexp")
              (\x => case x of
@@ -539,16 +585,16 @@ trigger
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    trigger' : Rule Trigger
+    trigger' : Rule TriggerShadow
     trigger'
       = do symbol "trigger"
            p <- anySymbol
            e <- anySymbol
            g <- optional guard
            as <- optional transitionAction
-           pure (MkTrigger p e g as)
+           pure (MkTriggerShadow p e g as)
 
-transition : Rule Transition
+transition : Rule TransitionShadow
 transition
   = terminal ("Expected transition sexp")
              (\x => case x of
@@ -557,12 +603,12 @@ transition
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    transition' : Rule Transition
+    transition' : Rule TransitionShadow
     transition'
       = do symbol "transition"
            sd <- fromTo
            ts <- many trigger
-           pure (MkTransition (fst sd) (snd sd) ts)
+           pure (MkTransitionShadow (fst sd) (snd sd) ts)
 
 
 ---------
@@ -578,7 +624,7 @@ fsm
                          _ => Nothing)
   where
 
-    unzipItems : List (Either (List Parameter) (Either Participant (Either Event (Either State (Either Transition Meta))))) -> (List Parameter, List Participant, List Event, List State, List Transition, List Meta) -> (List Parameter, List Participant, List Event, List State, List Transition, List Meta)
+    unzipItems : List (Either (List Parameter) (Either Participant (Either Event (Either State (Either TransitionShadow Meta))))) -> (List Parameter, List Participant, List Event, List State, List TransitionShadow, List Meta) -> (List Parameter, List Participant, List Event, List State, List TransitionShadow, List Meta)
     unzipItems []        (m, ps, es, ss, ts, ms) = (m, reverse ps, reverse es, reverse ss, reverse ts, ms)
     unzipItems (x :: xs) (m, ps, es, ss, ts, ms) = case x of
                                                         Left m' => unzipItems xs (m', ps, es, ss, ts, ms)
@@ -592,24 +638,45 @@ fsm
                                                                                                                             Left t => unzipItems xs (m, ps, es, ss, t :: ts, ms)
                                                                                                                             Right m' => unzipItems xs (m, ps, es, ss, ts, m' :: ms)
 
-    item : Rule (Either (List Parameter) (Either Participant (Either Event (Either State (Either Transition Meta)))))
+    item : Rule (Either (List Parameter) (Either Participant (Either Event (Either State (Either TransitionShadow Meta)))))
     item
       = do x <- choose model (choose participant (choose event (choose state (choose transition meta))))
            pure x
+
+    unshadowTrigger : List Participant -> List Event -> TriggerShadow -> Maybe Trigger
+    unshadowTrigger ps es (MkTriggerShadow pr er g as)
+      = do p <- derefParticipant pr ps
+           e <- derefEvent er es
+           pure (MkTrigger p e g as)
+
+    unshadowTransition : List Participant -> List Event -> List State -> TransitionShadow -> Maybe Transition
+    unshadowTransition ps es ss (MkTransitionShadow sr dr ts)
+      = let src = derefState sr ss
+            dst = derefState dr ss
+            ts' = map (unshadowTrigger ps es) ts in
+            if length (filter (\x => not (isJust x)) ts') > Z
+               then Nothing
+               else do src <- derefState sr ss
+                       dst <- derefState dr ss
+                       ts'' <- liftMaybeList $ filter isJust ts'
+                       pure (MkTransition src dst ts'')
 
     fsm' : Rule Fsm
     fsm'
       = do symbol "fsm"
            n <- anySymbol
            is <- many item
-           -- let uz = unzipItems is ([], [], [], [], [], [])
-           pure (MkFsm n
-                       (fst $ unzipItems is ([], [], [], [], [], []))
-                       ((fst . snd) $ unzipItems is ([], [], [], [], [], []))
-                       ((fst . snd . snd) $ unzipItems is ([], [], [], [], [], []))
-                       ((fst . snd . snd . snd) $ unzipItems is ([], [], [], [], [], []))
-                       ((fst . snd . snd . snd . snd) $ unzipItems is ([], [], [], [], [], []))
-                       (toMaybe ((snd . snd . snd . snd . snd) $ unzipItems is ([], [], [], [], [], []))))
+           let uz = unzipItems is ([], [], [], [], [], [])
+           let m  = fst uz
+           let ps = (fst . snd) uz
+           let es = (fst . snd . snd) uz
+           let ss = (fst . snd . snd . snd) uz
+           let ts = map (unshadowTransition ps es ss) ((fst . snd . snd . snd . snd) uz)
+           let ms = toMaybe $ (snd . snd . snd . snd . snd) uz
+           let tt = filter isJust ts
+           if length ts == length tt
+              then pure (MkFsm n m ps es ss (fromMaybe [] (liftMaybeList tt)) ms)
+              else fail "ParticipantRef, StateRef or EventRef error"
 
 ---------
 -- API --
