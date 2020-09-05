@@ -322,6 +322,10 @@ export
 Show Participant where
   show (MkParticipant n ms) = "(participant " ++ n ++ " " ++ (show ms) ++ ")"
 
+export
+Eq Participant where
+  (==) (MkParticipant n1 _) (MkParticipant n2 _) = n1 == n2
+
 public export
 record State where
   constructor MkState
@@ -375,17 +379,17 @@ Ord Event where
 public export
 record Trigger where
   constructor MkTrigger
-  participant: Participant
+  participants: List Participant
   event: Event
   guard: Maybe TestExpression
   actions: Maybe (List Action)
 
 export
 Show Trigger where
-  show (MkTrigger p e (Just g) (Just as)) = "(trigger " ++ (show p) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ ") (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
-  show (MkTrigger p e Nothing  (Just as)) = "(trigger " ++ (show p) ++ " " ++ (show e) ++ " (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
-  show (MkTrigger p e (Just g) Nothing)   = "(trigger " ++ (show p) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ "))"
-  show (MkTrigger p e Nothing  Nothing)   = "(trigger " ++ (show p) ++ " " ++ (show e) ++ ")"
+  show (MkTrigger ps e (Just g) (Just as)) = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ ") (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
+  show (MkTrigger ps e Nothing  (Just as)) = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ " (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
+  show (MkTrigger ps e (Just g) Nothing)   = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ "))"
+  show (MkTrigger ps e Nothing  Nothing)   = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ ")"
 
 export
 Eq Trigger where

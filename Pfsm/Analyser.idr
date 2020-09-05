@@ -20,7 +20,7 @@ ParticipantRef = String
 
 record TriggerShadow where
   constructor MkTriggerShadow
-  participant: ParticipantRef
+  participants: List ParticipantRef
   event: EventRef
   guard: Maybe TestExpression
   actions: Maybe (List Action)
@@ -47,6 +47,15 @@ derefParticipant _   []        = Nothing
 derefParticipant ref (x :: xs) = if name x == ref
                               then Just x
                               else derefParticipant ref xs
+
+derefParticipants : List ParticipantRef -> List Participant -> List (Maybe Participant)
+derefParticipants prs ps
+  = derefParticipants' prs ps []
+  where
+    derefParticipants' : List ParticipantRef -> List Participant -> List (Maybe Participant) -> List (Maybe Participant)
+    derefParticipants' []          ps acc = acc
+    derefParticipants' ("*" :: xs) ps acc = map Just ps
+    derefParticipants' (x :: xs)   ps acc = derefParticipants' xs ps $ ((derefParticipant x ps) :: acc)
 
 derefEvent : EventRef -> List Event -> Maybe Event
 derefEvent _   []        = Nothing
@@ -587,12 +596,31 @@ trigger
   where
     trigger' : Rule TriggerShadow
     trigger'
-      = do symbol "trigger"
-           p <- anySymbol
-           e <- anySymbol
-           g <- optional guard
-           as <- optional transitionAction
-           pure (MkTriggerShadow p e g as)
+      = trigger'' <|> trigger'''
+      where
+        plist : Rule (List ParticipantRef)
+        plist
+          = do symbol "list" -- must have to consume the following MANY rule
+               vs <- many anySymbol
+               pure vs
+
+        trigger'' : Rule TriggerShadow
+        trigger''
+          = do symbol "trigger"
+               p <- anySymbol
+               e <- anySymbol
+               g <- optional guard
+               as <- optional transitionAction
+               pure (MkTriggerShadow [p] e g as)
+
+        trigger''' : Rule TriggerShadow
+        trigger'''
+          = do symbol "trigger"
+               ps <- plist
+               e <- anySymbol
+               g <- optional guard
+               as <- optional transitionAction
+               pure (MkTriggerShadow ps e g as)
 
 transition : Rule TransitionShadow
 transition
@@ -644,10 +672,10 @@ fsm
            pure x
 
     unshadowTrigger : List Participant -> List Event -> TriggerShadow -> Maybe Trigger
-    unshadowTrigger ps es (MkTriggerShadow pr er g as)
-      = do p <- derefParticipant pr ps
+    unshadowTrigger ps es (MkTriggerShadow prs er g as)
+      = do ps' <- liftMaybeList $ filter isJust $ derefParticipants prs ps
            e <- derefEvent er es
-           pure (MkTrigger p e g as)
+           pure (MkTrigger ps' e g as)
 
     unshadowTransition : List Participant -> List Event -> List State -> TransitionShadow -> Maybe Transition
     unshadowTransition ps es ss (MkTransitionShadow sr dr ts)
