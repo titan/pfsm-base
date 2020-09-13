@@ -1,6 +1,7 @@
 module Pfsm.Data
 
 import Data.List
+import Data.Maybe
 import Data.SortedMap
 
 public export
@@ -55,20 +56,18 @@ primTypeStrs = ["bool", "byte", "char", "short", "ushort", "int", "uint", "long"
 namespace PrimType
   export
   fromString : String -> Maybe PrimType
-  fromString str
-    = case str of
-           "bool"   => Just PTBool
-           "byte"   => Just PTByte
-           "char"   => Just PTChar
-           "short"  => Just PTShort
-           "ushort" => Just PTUShort
-           "int"    => Just PTInt
-           "uint"   => Just PTUInt
-           "long"   => Just PTLong
-           "ulong"  => Just PTULong
-           "real"   => Just PTReal
-           "string" => Just PTString
-           _        => Nothing
+  fromString "bool"   = Just PTBool
+  fromString "byte"   = Just PTByte
+  fromString "char"   = Just PTChar
+  fromString "short"  = Just PTShort
+  fromString "ushort" = Just PTUShort
+  fromString "int"    = Just PTInt
+  fromString "uint"   = Just PTUInt
+  fromString "long"   = Just PTLong
+  fromString "ulong"  = Just PTULong
+  fromString "real"   = Just PTReal
+  fromString "string" = Just PTString
+  fromString _        = Nothing
 
 public export
 data Tipe = TPrimType PrimType
@@ -135,7 +134,7 @@ Ord Expression where
 
 export
 inferType : SortedMap Expression Tipe -> Expression -> Maybe Tipe
-inferType env (ApplicationExpression _ es) = Just $ foldl (\acc, x => TArrow x acc ) TUnit (reverse (map ((maybe TUnit id) . (inferType env)) es))
+inferType env (ApplicationExpression _ es) = Just $ foldl (\acc, x => TArrow x acc ) TUnit (map ((fromMaybe TUnit) . (inferType env)) es)
 inferType env (BooleanExpression _)        = Just (TPrimType PTBool)
 inferType env i@(IdentifyExpression _)     = lookup i env
 inferType env (IntegerLiteralExpression _) = Just (TPrimType PTInt)

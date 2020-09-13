@@ -26,6 +26,22 @@ export
 indent : Nat -> String
 indent idt = repeat " " idt
 
+export
+nonblank : String -> Bool
+nonblank s = length s > Z
+
+namespace Pfsm.Data.Meta
+  export
+  lookup : MetaKey -> Maybe (List Meta) -> Maybe MetaValue
+  lookup k Nothing   = Nothing
+  lookup k (Just ms) = lookup' k ms Nothing
+    where
+      lookup' : MetaKey -> List Meta -> Maybe MetaValue -> Maybe MetaValue
+      lookup' k []                      acc = acc
+      lookup' k (m@(MkMeta k' v) :: ms) acc = if k == k'
+                                                 then Just v
+                                                 else lookup' k ms acc
+
 namespace Data.Strings
   export
   capital : String -> String
