@@ -600,9 +600,18 @@ trigger
       where
         plist : Rule (List ParticipantRef)
         plist
-          = do symbol "list" -- must have to consume the following MANY rule
-               vs <- many anySymbol
-               pure vs
+          = terminal ("Expected list sexp")
+                     (\x => case x of
+                                 SExpList ss => case parse plist' ss of
+                                                     Left _ => Nothing
+                                                     Right (result, _) => Just result
+                                 _ => Nothing)
+          where
+            plist' : Rule (List ParticipantRef)
+            plist'
+              = do symbol "list" -- must have to consume the following MANY rule
+                   vs <- many anySymbol
+                   pure vs
 
         trigger'' : Rule TriggerShadow
         trigger''
