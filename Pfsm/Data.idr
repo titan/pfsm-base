@@ -70,12 +70,58 @@ namespace PrimType
   fromString _        = Nothing
 
 public export
-data Tipe = TPrimType PrimType
-          | TList Tipe
-          | TDict PrimType Tipe
-          | TArrow Tipe Tipe
-          | TRecord Name (List Tipe)
-          | TUnit
+MetaKey: Type
+MetaKey = String
+
+public export
+data MetaValue = MVString String
+               | MVList (List String)
+               | MVDict (SortedMap String String)
+
+export
+Show MetaValue where
+  show (MVString s) = show s
+  show (MVList vs)  = "(list " ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" vs) ++ ")"
+  show (MVDict vs)  = "(dict " ++ (foldl (\acc, (x, y) => acc ++ " (" ++ (show x) ++ " " ++ (show y) ++ ")") "" (SortedMap.toList vs)) ++ ")"
+
+export
+Eq MetaValue where
+  (==) v1 v2 = (show v1) == (show v2)
+
+export
+Ord MetaValue where
+  compare v1 v2 = compare (show v1) (show v2)
+
+public export
+record Meta where
+  constructor MkMeta
+  key: MetaKey
+  value: MetaValue
+
+export
+Show Meta where
+  show (MkMeta k v)  = "(meta " ++ (show k) ++ " " ++ (show v) ++ ")"
+
+export
+Eq Meta where
+  (==) m1 m2 = (key m1) == (key m2) && (value m1) == (value m2)
+
+export
+Ord Meta where
+  compare m1 m2 = compare (show m1) (show m2)
+
+mutual
+  public export
+  data Tipe = TPrimType PrimType
+            | TList Tipe
+            | TDict PrimType Tipe
+            | TArrow Tipe Tipe
+            | TRecord Name (List Parameter)
+            | TUnit
+
+  public export
+  Parameter : Type
+  Parameter = (Name, Tipe, Maybe (List Meta))
 
 export
 Show Tipe where
@@ -83,7 +129,7 @@ Show Tipe where
   show (TList t)      = "(list " ++ (show t) ++ ")"
   show (TDict k v)    = "(dict " ++ (show k) ++ " " ++ (show v) ++ ")"
   show (TArrow p r)   = "(-> " ++ (show p) ++ " " ++ (show r) ++ ")"
-  show (TRecord n ts) = "(record " ++ (show n) ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" ts) ++ ")"
+  show (TRecord n ts)   = "(record " ++ (show n) ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" ts) ++ ")"
   show TUnit          = "()"
 
 export
@@ -99,7 +145,6 @@ Eq Tipe where
 export
 Ord Tipe where
   compare t1 t2 = compare (show t1) (show t2)
-
 
 public export
 data Expression = ApplicationExpression String (List Expression)
@@ -271,47 +316,6 @@ Ord Action where
   compare a1                  a2                  = compare (show a1) (show a2)
 
 public export
-MetaKey: Type
-MetaKey = String
-
-public export
-data MetaValue = MVString String
-               | MVList (List String)
-               | MVDict (SortedMap String String)
-
-export
-Show MetaValue where
-  show (MVString s) = show s
-  show (MVList vs)  = "(list " ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" vs) ++ ")"
-  show (MVDict vs)  = "(dict " ++ (foldl (\acc, (x, y) => acc ++ " (" ++ (show x) ++ " " ++ (show y) ++ ")") "" (SortedMap.toList vs)) ++ ")"
-
-export
-Eq MetaValue where
-  (==) v1 v2 = (show v1) == (show v2)
-
-export
-Ord MetaValue where
-  compare v1 v2 = compare (show v1) (show v2)
-
-public export
-record Meta where
-  constructor MkMeta
-  key: MetaKey
-  value: MetaValue
-
-export
-Show Meta where
-  show (MkMeta k v)  = "(meta " ++ (show k) ++ " " ++ (show v) ++ ")"
-
-export
-Eq Meta where
-  (==) m1 m2 = (key m1) == (key m2) && (value m1) == (value m2)
-
-export
-Ord Meta where
-  compare m1 m2 = compare (show m1) (show m2)
-
-public export
 record Participant where
   constructor MkParticipant
   name: Name
@@ -351,10 +355,6 @@ Eq State where
 export
 Ord State where
   compare (MkState n1 _ _ _) (MkState n2 _ _ _) = compare n1 n2
-
-public export
-Parameter : Type
-Parameter = (Name, Tipe, Maybe (List Meta))
 
 public export
 record Event where

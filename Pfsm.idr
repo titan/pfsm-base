@@ -103,6 +103,11 @@ namespace Data.Vect
   join sep [x]       = x
   join sep (x :: xs) = foldl (\acc, y => acc ++ sep ++ y) x xs
 
+namespace Prelude.Types.Either
+  export
+  mapError : (a -> c) -> Either a b -> Either c b
+  mapError f e = either (Left . f) (Right . id) e
+
 -----------
 -- Event --
 -----------
@@ -127,6 +132,23 @@ rootEnv fsm
         env' = foldl (\acc, (n, t, _) => insert (IdentifyExpression ("@" ++ n)) t acc) Data.SortedMap.empty fsm.model
         env = foldl (\acc, (n, t, _) => insert (IdentifyExpression n) t acc) env' eps in
         env
+
+export
+liftRecords : List Parameter -> List Tipe
+liftRecords ps
+  = liftRecords' ps []
+  where
+    liftRecordFromTipe : Tipe -> Maybe (Tipe, List Parameter)
+    liftRecordFromTipe (TList t)        = liftRecordFromTipe t
+    liftRecordFromTipe (TDict _ v)      = liftRecordFromTipe v
+    liftRecordFromTipe t@(TRecord n ps) = Just (t, ps)
+    liftRecordFromTipe _                = Nothing
+
+    liftRecords' : List Parameter -> List Tipe -> List Tipe
+    liftRecords' []                acc = acc
+    liftRecords' ((_, t, _) :: xs) acc = case liftRecordFromTipe t of
+                                              Nothing => liftRecords' xs acc
+                                              Just (t, ps) => liftRecords' xs ((liftRecords ps) ++ (t :: acc))
 
 ----------------
 -- Expression --

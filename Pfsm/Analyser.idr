@@ -1,6 +1,7 @@
 module Pfsm.Analyser
 
 import Control.Delayed
+import Data.Either
 import Data.List
 import Data.Maybe
 import Data.SortedMap
@@ -30,6 +31,24 @@ record TransitionShadow where
   src: StateRef
   dst: StateRef
   triggers: List TriggerShadow
+
+
+mutual
+  data TipeShadow = TPrimTypeShadow PrimType
+                  | TListShadow (Either String TipeShadow)
+                  | TDictShadow PrimType (Either String TipeShadow)
+                  | TArrowShadow TipeShadow TipeShadow
+                  | TRecordShadow (List ParameterShadow)
+                  | TUnitShadow
+
+  ParameterShadow : Type
+  ParameterShadow = (Name, Either String TipeShadow, Maybe (List Meta))
+
+record EventShadow where
+  constructor MkEventShadow
+  name: Name
+  params: List ParameterShadow
+  metas: Maybe (List Meta)
 
 ------------
 -- Helper --
@@ -72,6 +91,18 @@ derefState ref (x :: xs) = if name x == ref
 liftMaybeList : List (Maybe a) -> Maybe (List a)
 liftMaybeList [] = Nothing
 liftMaybeList xs = Just $ foldl (\acc, x => case x of Just x' => x' :: acc; Nothing => acc) [] xs
+
+isAllJust : List (Maybe a) -> Bool
+isAllJust = foldl (\acc, x => acc && (isJust x)) True
+
+liftEitherList : List (Either a b) -> (List a, List b)
+liftEitherList xs
+  = liftEitherList' xs [] []
+  where
+    liftEitherList' : List (Either a b) -> List a -> List b -> (List a, List b)
+    liftEitherList' []                as bs = (as, bs)
+    liftEitherList' ((Left a)  :: xs) as bs = liftEitherList' xs (a :: as) bs
+    liftEitherList' ((Right b) :: xs) as bs = liftEitherList' xs as (b :: bs)
 
 --------------
 -- Analyser --
@@ -196,62 +227,105 @@ meta
 -- Type --
 ----------
 
-tipe : Rule Tipe
-tipe = primtype <|> list <|> dict
-  where
-    prim : Rule PrimType
-    prim = terminal ("Expected one of strings: " ++ (foldl (\ a, e => a ++ " " ++ e) "" primTypeStrs))
-                    (\x => case x of
-                                SymbolAtom s => fromString s
-                                _ => Nothing)
+mutual
+  tipe : Rule TipeShadow
+  tipe = primtype <|> list <|> dict <|> rekord
+    where
+      prim : Rule PrimType
+      prim = terminal ("Expected one of strings: " ++ (foldl (\ a, e => a ++ " " ++ e) "" primTypeStrs))
+                      (\x => case x of
+                                  SymbolAtom s => fromString s
+                                  _ => Nothing)
 
-    primtype : Rule Tipe
-    primtype
-      = do x <- prim
-           pure (TPrimType x)
+      primtype : Rule TipeShadow
+      primtype
+        = do x <- prim
+             pure (TPrimTypeShadow x)
 
-    list : Rule Tipe
-    list
-      = terminal ("Expected " ++ (bold "list") ++ " sexp")
-                 (\x => case x of
-                             SExpList ((SymbolAtom "list") :: ss) => case parse tipe ss of
-                                                                          Left _ => Nothing
-                                                                          Right (t, _) => Just (TList t)
-                             _ => Nothing)
+      list : Rule TipeShadow
+      list
+        = terminal ("Expected " ++ (bold "list") ++ " sexp")
+                   (\x => case x of
+                               SExpList ss => case parse list' ss of
+                                                   Left _ => Nothing
+                                                   Right (v, _) => Just v
+                               _ => Nothing)
+        where
+          list' : Rule TipeShadow
+          list'
+            = do symbol "list"
+                 t <- choose anySymbol tipe
+                 pure (TListShadow t)
 
-    dict : Rule Tipe
-    dict
-      = terminal ("Expected " ++ (bold "dict") ++ " sexp")
-                 (\x => case x of
-                             SExpList ((SymbolAtom "dict") :: ss) => case parse prim ss of
-                                                                          Left _ => Nothing
-                                                                          Right (p, sss) => case parse tipe sss of
-                                                                                                 Left _ => Nothing
-                                                                                                 Right (t, _) => Just (TDict p t)
-                             _ => Nothing)
+      dict : Rule TipeShadow
+      dict
+        = terminal ("Expected " ++ (bold "dict") ++ " sexp")
+                   (\x => case x of
+                               SExpList ss => case parse dict' ss of
+                                                   Left _ => Nothing
+                                                   Right (v, _) => Just v
+                               _ => Nothing)
+        where
+          dict' : Rule TipeShadow
+          dict'
+            = do symbol "dict"
+                 k <- prim
+                 v <- choose anySymbol tipe
+                 pure (TDictShadow k v)
 
-thz : Rule Parameter
-thz
-  = terminal ("Expected " ++ (bold "the") ++ " sexp")
+      rekord : Rule TipeShadow
+      rekord
+        = terminal ("Expected " ++ (bold "record") ++ " sexp")
+                   (\x => case x of
+                               SExpList ss => case parse rekord' ss of
+                                                   Left _ => Nothing
+                                                   Right (v, _) => Just v
+                               _ => Nothing)
+        where
+          rekord' : Rule TipeShadow
+          rekord'
+            = do symbol "record"
+                 ts <- many thz
+                 pure (TRecordShadow ts)
+
+  thz : Rule ParameterShadow
+  thz
+    = terminal ("Expected " ++ (bold "the") ++ " sexp")
+               (\x => case x of
+                           SExpList ss => case parse thz' ss of
+                                               Left _ => Nothing
+                                               Right (result, _) => Just result
+                           _ => Nothing)
+    where
+      thz' : Rule ParameterShadow
+      thz'
+        = do symbol "the"
+             t <- choose anySymbol tipe
+             n <- anySymbol
+             ms <- many meta
+             pure (n, t, if length ms > Z then Just ms else Nothing)
+
+deftype : Rule (Name, TipeShadow)
+deftype
+  = terminal ("Expected " ++ (bold "deftype") ++ " sexp")
              (\x => case x of
-                         SExpList ss => case parse thz' ss of
+                         SExpList ss => case parse deftype' ss of
                                              Left _ => Nothing
-                                             Right (result, _) => Just result
+                                             Right (v, _) => Just v
                          _ => Nothing)
   where
-    thz' : Rule Parameter
-    thz'
-      = do symbol "the"
-           t <- tipe
+    deftype' : Rule (Name, TipeShadow)
+    deftype'
+      = do symbol "deftype"
            n <- anySymbol
-           ms <- many meta
-           pure (n, t, if length ms > Z then Just ms else Nothing)
+           t <- tipe
+           pure (n, t)
 
 -----------
 -- Model --
 -----------
 
-model : Rule (List Parameter)
+model : Rule (List ParameterShadow)
 model
   = terminal ("Expected model sexp")
              (\x => case x of
@@ -260,7 +334,7 @@ model
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    model' : Rule (List Parameter)
+    model' : Rule (List ParameterShadow)
     model'
       = do symbol "model"
            xs <- many thz
@@ -269,7 +343,7 @@ model
 -----------
 -- Event --
 -----------
-event : Rule Event
+event : Rule EventShadow
 event
   = terminal ("Expected event sexp")
              (\x => case x of
@@ -278,13 +352,13 @@ event
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    event' : Rule Event
+    event' : Rule EventShadow
     event'
       = do symbol "event"
            n <- anySymbol
            xs <- many thz
            ms <- many meta
-           pure (MkEvent n xs (if length ms > Z then Just ms else Nothing))
+           pure (MkEventShadow n xs (if length ms > Z then Just ms else Nothing))
 
 -----------------
 -- Participant --
@@ -653,67 +727,120 @@ transition
 ---------
 fsm : Rule Fsm
 fsm
-  = terminal ("Expected fsm sexp")
-             (\x => case x of
-                         SExpList ss => case parse fsm' ss of
-                                             Left _ => Nothing
-                                             Right (result, _) => Just result
-                         _ => Nothing)
+  = do symbol "fsm"
+       n <- anySymbol
+       is <- many item
+       let uz = unzipItems is ([], [], [], [], [], [], [])
+       case deshadowDefType $ (snd . snd . snd . snd . snd . snd) uz of
+            Left e => fail e
+            Right cts => let (ers, m) = liftEitherList $ map (deshadowParameter cts) $ fst uz in
+                             if length ers > Z
+                                then do fail ("Unsolved types:" ++ (foldl (\a, x => a ++ " " ++ (bold x)) "" ers) ++ " in model")
+                                else let (ers', es) = liftEitherList $ map (deshadowEvent cts) $ (Builtin.fst . snd . snd) uz in
+                                         if length ers' > Z
+                                            then do fail ("Unsolved types:" ++ (foldl (\a, x => a ++ " " ++ (bold x)) "" ers') ++ " in events")
+                                            else let ps = (fst . snd) uz
+                                                     ss = (fst . snd . snd . snd) uz
+                                                     ts = map (deshadowTransition ps es ss) ((fst . snd . snd . snd . snd) uz)
+                                                     ms = toMaybe $ (Builtin.fst . snd . snd . snd . snd . snd) uz
+                                                     tt = filter isJust ts in
+                                                     if isAllJust ts
+                                                        then do pure (MkFsm n m ps es ss (fromMaybe [] (liftMaybeList tt)) ms)
+                                                        else do fail "ParticipantRef, StateRef or EventRef error"
+
   where
 
-    unzipItems : List (Either (List Parameter) (Either Participant (Either Event (Either State (Either TransitionShadow Meta))))) -> (List Parameter, List Participant, List Event, List State, List TransitionShadow, List Meta) -> (List Parameter, List Participant, List Event, List State, List TransitionShadow, List Meta)
-    unzipItems []        (m, ps, es, ss, ts, ms) = (m, reverse ps, reverse es, reverse ss, reverse ts, ms)
-    unzipItems (x :: xs) (m, ps, es, ss, ts, ms) = case x of
-                                                        Left m' => unzipItems xs (m', ps, es, ss, ts, ms)
-                                                        Right x0 => case x0 of
-                                                                         Left p => unzipItems xs (m, p :: ps, es, ss, ts, ms)
-                                                                         Right x1 => case x1 of
-                                                                                          Left e => unzipItems xs (m, ps, e :: es, ss, ts, ms)
-                                                                                          Right x2 => case x2 of
-                                                                                                           Left s => unzipItems xs (m, ps, es, s :: ss, ts, ms)
-                                                                                                           Right x3 => case x3 of
-                                                                                                                            Left t => unzipItems xs (m, ps, es, ss, t :: ts, ms)
-                                                                                                                            Right m' => unzipItems xs (m, ps, es, ss, ts, m' :: ms)
+    unzipItems : List (Either (List ParameterShadow) (Either Participant (Either EventShadow (Either State (Either TransitionShadow (Either Meta (Name, TipeShadow))))))) -> (List ParameterShadow, List Participant, List EventShadow, List State, List TransitionShadow, List Meta, List (Name, TipeShadow)) -> (List ParameterShadow, List Participant, List EventShadow, List State, List TransitionShadow, List Meta, List (Name, TipeShadow))
+    unzipItems []        (m, ps, es, ss, ts, ms, ds) = (m, reverse ps, reverse es, reverse ss, reverse ts, ms, ds)
+    unzipItems (x :: xs) (m, ps, es, ss, ts, ms, ds) = case x of
+                                                            Left m' => unzipItems xs (m', ps, es, ss, ts, ms, ds)
+                                                            Right x0 => case x0 of
+                                                                             Left p => unzipItems xs (m, p :: ps, es, ss, ts, ms, ds)
+                                                                             Right x1 => case x1 of
+                                                                                              Left e => unzipItems xs (m, ps, e :: es, ss, ts, ms, ds)
+                                                                                              Right x2 => case x2 of
+                                                                                                               Left s => unzipItems xs (m, ps, es, s :: ss, ts, ms, ds)
+                                                                                                               Right x3 => case x3 of
+                                                                                                                                Left t => unzipItems xs (m, ps, es, ss, t :: ts, ms, ds)
+                                                                                                                                Right x4 => case x4 of
+                                                                                                                                                 Left m' => unzipItems xs (m, ps, es, ss, ts, m' :: ms, ds)
+                                                                                                                                                 Right d => unzipItems xs (m, ps, es, ss, ts, ms, d :: ds)
 
-    item : Rule (Either (List Parameter) (Either Participant (Either Event (Either State (Either TransitionShadow Meta)))))
+    item : Rule (Either (List ParameterShadow) (Either Participant (Either EventShadow (Either State (Either TransitionShadow (Either Meta (Name, TipeShadow)))))))
     item
-      = do x <- choose model (choose participant (choose event (choose state (choose transition meta))))
+      = do x <- choose model (choose participant (choose event (choose state (choose transition (choose meta deftype)))))
            pure x
 
-    unshadowTrigger : List Participant -> List Event -> TriggerShadow -> Maybe Trigger
-    unshadowTrigger ps es (MkTriggerShadow prs er g as)
+    deshadowTrigger : List Participant -> List Event -> TriggerShadow -> Maybe Trigger
+    deshadowTrigger ps es (MkTriggerShadow prs er g as)
       = do ps' <- liftMaybeList $ filter isJust $ derefParticipants prs ps
            e <- derefEvent er es
            pure (MkTrigger ps' e g as)
 
-    unshadowTransition : List Participant -> List Event -> List State -> TransitionShadow -> Maybe Transition
-    unshadowTransition ps es ss (MkTransitionShadow sr dr ts)
+    deshadowTransition : List Participant -> List Event -> List State -> TransitionShadow -> Maybe Transition
+    deshadowTransition ps es ss (MkTransitionShadow sr dr ts)
       = let src = derefState sr ss
             dst = derefState dr ss
-            ts' = map (unshadowTrigger ps es) ts in
+            ts' = map (deshadowTrigger ps es) ts in
             if length (filter (\x => not (isJust x)) ts') > Z
                then Nothing
                else do src <- derefState sr ss
                        dst <- derefState dr ss
                        ts'' <- liftMaybeList $ filter isJust ts'
                        pure (MkTransition src dst ts'')
+    mutual
 
-    fsm' : Rule Fsm
-    fsm'
-      = do symbol "fsm"
-           n <- anySymbol
-           is <- many item
-           let uz = unzipItems is ([], [], [], [], [], [])
-           let m  = fst uz
-           let ps = (fst . snd) uz
-           let es = (fst . snd . snd) uz
-           let ss = (fst . snd . snd . snd) uz
-           let ts = map (unshadowTransition ps es ss) ((fst . snd . snd . snd . snd) uz)
-           let ms = toMaybe $ (snd . snd . snd . snd . snd) uz
-           let tt = filter isJust ts
-           if length ts == length tt
-              then pure (MkFsm n m ps es ss (fromMaybe [] (liftMaybeList tt)) ms)
-              else fail "ParticipantRef, StateRef or EventRef error"
+      deshadowParameter : SortedMap String Tipe -> ParameterShadow -> Either String Parameter
+      deshadowParameter env (n, Left ref, ms) = case lookup ref env of
+                                                     Nothing => Left ref
+                                                     Just t => Right (n, t, ms)
+      deshadowParameter env (n, Right t, ms)  = case shadowToTipe env n t of
+                                                     Left e => Left e
+                                                     Right t' => Right (n, t', ms)
+
+      shadowToTipe : SortedMap String Tipe -> Name -> TipeShadow -> Either String Tipe
+      shadowToTipe env n (TPrimTypeShadow t) = Right (TPrimType t)
+      shadowToTipe env n (TListShadow (Left ref))   = case lookup ref env of
+                                                           Nothing => Left ref
+                                                           Just t => Right (TList t)
+      shadowToTipe env n (TListShadow (Right t))    = case shadowToTipe env n t of
+                                                           Left e => Left e
+                                                           Right t' => Right (TList t')
+      shadowToTipe env n (TDictShadow k (Left ref)) = case lookup ref env of
+                                                           Nothing => Left ref
+                                                           Just v => Right (TDict k v)
+      shadowToTipe env n (TDictShadow k (Right v))  = case shadowToTipe env n v of
+                                                           Left e => Left e
+                                                           Right v' => Right (TDict k v')
+      shadowToTipe env n (TArrowShadow f t)         = case shadowToTipe env n f of
+                                                           Left e => Left e
+                                                           Right f' => case shadowToTipe env n t of
+                                                                            Left e' => Left e'
+                                                                            Right t' => Right (TArrow f' t')
+      shadowToTipe env n TUnitShadow                = Right TUnit
+      shadowToTipe env n (TRecordShadow ps)         = let (es, ps') = liftEitherList (map (deshadowParameter env) ps) in
+                                                          if length es > Z
+                                                             then Left $ foldl (\acc, x => acc ++ " " ++ x ) "" es
+                                                             else Right (TRecord n ps')
+
+    deshadowDefType : List (Name, TipeShadow) -> Either String (SortedMap Name Tipe)
+    deshadowDefType ds
+      = deshadowDefType' ds [] (length ds) $ foldl (\acc, x => case PrimType.fromString x of Just t => insert x (TPrimType t) acc; Nothing => acc) empty primTypeStrs
+      where
+        deshadowDefType' : List (Name, TipeShadow) -> List (Name, TipeShadow) -> Nat -> SortedMap Name Tipe -> Either String (SortedMap Name Tipe)
+        deshadowDefType' []               []       _   acc = Right acc
+        deshadowDefType' []               unsolved Z   acc = Left ("Unsolved customized types: " ++ (foldl (\a, (n, _) => a ++ " " ++ (bold n)) "" unsolved))
+        deshadowDefType' []               unsolved cnt acc = deshadowDefType' unsolved [] (minus cnt 1) acc
+        deshadowDefType' (d@(n, t) :: xs) unsolved cnt acc = case shadowToTipe acc n t of
+                                                                  Left  _  => deshadowDefType' xs (d :: unsolved) cnt acc
+                                                                  Right t' => deshadowDefType' xs unsolved cnt $ insert n t' acc
+
+    deshadowEvent : SortedMap Name Tipe -> EventShadow -> Either String Event
+    deshadowEvent env (MkEventShadow n ps ms)
+      = let (es, ps') = liftEitherList $ map (deshadowParameter env) ps in
+            if length es > Z
+               then Left (foldl (\a, x => a ++ " " ++ (bold x)) "" es)
+               else Right (MkEvent n ps' ms)
 
 ---------
 -- API --
@@ -721,5 +848,5 @@ fsm
 
 export
 analyse : SExp -> Either (ParseError SExp) (Fsm, List SExp)
-analyse sexp
-  = parse fsm [sexp]
+analyse (SExpList sexp) = parse fsm sexp
+analyse _               = Left (Error ("Expected " ++ (bold "fsm") ++ "sexp") [])
