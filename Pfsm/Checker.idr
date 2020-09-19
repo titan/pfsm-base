@@ -24,11 +24,17 @@ summary xs
 ---------
 
 export
+checkersErrorToString : List String -> String
+checkersErrorToString = join " "
+
+export
 defaultCheckingRules : List (Fsm -> List (Maybe String))
 defaultCheckingRules
   = []
 
 export
-check : Fsm -> List (Fsm -> List (Maybe String)) -> Maybe (List String)
+check : Fsm -> List (Fsm -> List (Maybe String)) -> Either (List String) Fsm
 check fsm rules
-  = summary $ foldr (\y, a => y ++ a) [] $ map (\x => x fsm) rules
+  = case summary $ foldr (\y, a => y ++ a) [] $ map (\checker => checker fsm) rules of
+         Nothing => Right fsm
+         Just errs => Left errs

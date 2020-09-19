@@ -5,24 +5,26 @@ import System.File
 import Data.List
 import public Text.Lexer.Core
 
+import Pfsm
 import Pfsm.Analyser
+import Pfsm.Checker
 import Pfsm.Data
 import Pfsm.Parser
-import Pfsm.Checker
 
 lint : String -> IO ()
 lint f
-  = do
-    r <- readFile f
-    case r of
-         Left e => putStrLn $ show e
-         Right content => case parseSExp content of
-                               Left (Error e r) => putStrLn ("Parse error " ++ e)
-                               Right (sexp, _) => case analyse sexp of
-                                                       Left (Error e _) => putStrLn $ "run analyser error, " ++ e
-                                                       Right (fsm, _) => case check fsm defaultCheckingRules of
-                                                                              Just errs => putStrLn $ foldr (\x, a => x ++ "\n" ++ a) "" errs
-                                                                              Nothing => putStrLn (fsm.name ++ " is okay")
+  = do Right content <- readFile f
+         | Left err => putStrLn $ show err
+       case doWork content of
+          Left err => putStrLn err
+          Right fsm => putStrLn fsm.name
+  where
+    doWork : String -> Either String Fsm
+    doWork content
+      = do (sexp, _) <- mapError parseErrorToString $ parseSExp content
+           (fsm, _) <- mapError parseErrorToString $ analyse sexp
+           fsm' <- mapError checkersErrorToString $ check fsm defaultCheckingRules
+           pure fsm'
 
 usage : IO ()
 usage = putStrLn "Usage: fsm-lint <FILE>"

@@ -120,3 +120,7 @@ parseSExp inp
     notComment t = case kind t of
                         FKComment => False
                         _ => True
+
+export
+parseErrorToString : ParseError a -> String
+parseErrorToString (Error e _) = e
