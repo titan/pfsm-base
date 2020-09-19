@@ -164,6 +164,11 @@ expressionsOfAction : Action -> List Expression
 expressionsOfAction (AssignmentAction l r) = [l, r]
 expressionsOfAction (OutputAction _ es)    = es
 
+export
+applicationExpressionEqualityChecker : SortedMap Expression Tipe -> Expression -> Expression -> Bool
+applicationExpressionEqualityChecker env a1@(ApplicationExpression n1 _) a2@(ApplicationExpression n2 _) = n1 == n2 && (inferType env a1) == (inferType env a2)
+applicationExpressionEqualityChecker env _                               _                               = False
+
 --------------------
 -- TestExpression --
 --------------------
