@@ -3,6 +3,7 @@ module Pfsm.Analyser
 import Control.Delayed
 import Data.Either
 import Data.List
+import Data.List1
 import Data.Maybe
 import Data.SortedMap
 import Text.Parser.Core
@@ -745,7 +746,9 @@ fsm
                                                      ms = toMaybe $ (Builtin.fst . snd . snd . snd . snd . snd) uz
                                                      tt = filter isJust ts in
                                                      if isAllJust ts
-                                                        then do pure (MkFsm n m ps es ss (fromMaybe [] (liftMaybeList tt)) ms)
+                                                        then case constructFsm n m ps es ss tt ms of
+                                                                  Right fsm => do pure fsm
+                                                                  Left err => do fail err
                                                         else do fail "ParticipantRef, StateRef or EventRef error"
 
   where
@@ -774,8 +777,12 @@ fsm
     deshadowTrigger : List Participant -> List Event -> TriggerShadow -> Maybe Trigger
     deshadowTrigger ps es (MkTriggerShadow prs er g as)
       = do ps' <- liftMaybeList $ filter isJust $ derefParticipants prs ps
+           ps'' <- List1.fromList ps'
            e <- derefEvent er es
-           pure (MkTrigger ps' e g as)
+           let as'' = case as of
+                          Just as' => List1.fromList as'
+                          Nothing => Nothing
+           pure (MkTrigger ps'' e g as'')
 
     deshadowTransition : List Participant -> List Event -> List State -> TransitionShadow -> Maybe Transition
     deshadowTransition ps es ss (MkTransitionShadow sr dr ts)
@@ -787,9 +794,10 @@ fsm
                else do src <- derefState sr ss
                        dst <- derefState dr ss
                        ts'' <- liftMaybeList $ filter isJust ts'
-                       pure (MkTransition src dst ts'')
-    mutual
+                       ts''' <- List1.fromList ts''
+                       pure (MkTransition src dst ts''')
 
+    mutual
       deshadowParameter : SortedMap String Tipe -> ParameterShadow -> Either String Parameter
       deshadowParameter env (n, Left ref, ms) = case lookup ref env of
                                                      Nothing => Left ref
@@ -841,6 +849,21 @@ fsm
             if length es > Z
                then Left (foldl (\a, x => a ++ " " ++ (bold x)) "" es)
                else Right (MkEvent n ps' ms)
+
+    constructFsm : String -> List Parameter -> List Participant -> List Event -> List State -> List (Maybe Transition) -> Maybe (List Meta) -> Either String Fsm
+    constructFsm n m ps es ss ts ms
+      = do Just ps' <- liftFromMaybe $ List1.fromList ps
+           | Nothing => Left ("Require one " ++ (bold "participant") ++ " at least")
+           Just es' <- liftFromMaybe $ List1.fromList es
+           | Nothing => Left ("Require one " ++ (bold "event") ++ " at least")
+           Just ss' <- liftFromMaybe $ List1.fromList ss
+           | Nothing => Left ("Require one " ++ (bold "state") ++ " at least")
+           Just ts' <- liftFromMaybe $ List1.fromList $ fromMaybe [] $ liftMaybeList ts
+           | Nothing => Left ("Require one " ++ (bold "transition") ++ " at least")
+           pure (MkFsm n m ps' es' ss' ts' ms)
+      where
+        liftFromMaybe : Maybe a -> Either String (Maybe a)
+        liftFromMaybe x = Right x
 
 ---------
 -- API --

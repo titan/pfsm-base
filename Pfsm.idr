@@ -79,12 +79,12 @@ namespace Data.List
 
   export
   enumerate : List a -> List (Nat, a)
-  enumerate xs
-    = enumerate' xs Z []
+  enumerate
+    = enumerate' [] Z
     where
-      enumerate' : List a -> Nat -> List (Nat, a) -> List (Nat, a)
-      enumerate' [] _ acc = reverse acc
-      enumerate' (x :: xs) idx acc = enumerate' xs (S idx) $ (idx, x) :: acc
+      enumerate' : List (Nat, a) -> Nat -> List a -> List (Nat, a)
+      enumerate' acc _   []        = reverse acc
+      enumerate' acc idx (x :: xs) = enumerate' ((idx, x) :: acc) (S idx) xs
 
   export
   join : String -> List String -> String
@@ -95,6 +95,44 @@ namespace Data.List
   export
   flatten : List (List a) -> List a
   flatten = foldl (\acc, x => acc ++ x) []
+
+namespace Data.List1
+  export
+  enumerate : List1 a -> List1 (Nat, a)
+  enumerate (x :: xs)
+    = enumerate' ((Z, x) :: []) (S Z) xs
+    where
+      enumerate' : List1 (Nat, a) -> Nat -> List a -> List1 (Nat, a)
+      enumerate' acc _   []        = reverse acc
+      enumerate' acc idx (x :: xs) = enumerate' ((idx, x) :: (List1.toList acc)) (S idx) xs
+
+  export
+  join : String -> List1 String -> String
+  join sep (x :: []) = x
+  join sep (x :: xs) = foldl (\acc, y => acc ++ sep ++ y) x xs
+
+  export
+  length : List1 a -> Nat
+  length (_ :: xs) = 1 + length xs
+
+  export
+  index : Eq a => a -> List1 a -> Maybe Nat
+  index a (x :: xs)
+    = if a == x
+         then Just Z
+         else do i <- index a xs
+                 pure (i + 1)
+
+  export
+  elemBy : (a -> a -> Bool) -> a -> List1 a -> Bool
+  elemBy p e (x :: xs) = p e x || elemBy p e xs
+
+  public export
+  filter : (p : a -> Bool) -> List1 a -> List a
+  filter p (x :: xs)
+     = if p x
+          then x :: filter p xs
+          else filter p xs
 
 namespace Data.Vect
   export
@@ -113,8 +151,8 @@ namespace Prelude.Types.Either
 -----------
 
 export
-parametersOfEvents : List Event -> List Parameter
-parametersOfEvents = (nubBy (\x, y => fst x == fst y)) . flatten . (map params)
+parametersOfEvents : List1 Event -> List Parameter
+parametersOfEvents = (nubBy (\x, y => fst x == fst y)) . flatten . (map params) . List1.toList
 
 ----------
 -- Tipe --
@@ -189,13 +227,13 @@ expressionsOfTestExpression e
 -----------
 
 liftFromAndToStates : List Transition -> (SortedSet State, SortedSet State) -> (SortedSet State, SortedSet State)
-liftFromAndToStates []                              acc          = acc
+liftFromAndToStates []                           acc          = acc
 liftFromAndToStates ((MkTransition s d _) :: xs) (srcs, dsts) = liftFromAndToStates xs (insert s srcs, insert d dsts)
 
 export
 startState : Fsm -> Maybe State
 startState fsm
-  = let (fs, ds) = liftFromAndToStates (transitions fsm) (empty, empty) in
+  = let (fs, ds) = liftFromAndToStates (List1.toList fsm.transitions ) (empty, empty) in
         case Data.SortedSet.toList (difference fs ds) of
              [] => Nothing
              (x :: xs) => Just x
@@ -203,7 +241,7 @@ startState fsm
 export
 stopState : Fsm -> SortedSet State
 stopState fsm
-  = let (fs, ds) = liftFromAndToStates (transitions fsm) (empty, empty) in
+  = let (fs, ds) = liftFromAndToStates (List1.toList fsm.transitions) (empty, empty) in
         difference ds fs
 
 ------------
@@ -211,29 +249,24 @@ stopState fsm
 ------------
 
 export
-actionsOfTrigger : Trigger -> List Action
-actionsOfTrigger (MkTrigger _ _ _ (Just as)) = as
-actionsOfTrigger (MkTrigger _ _ _ Nothing)   = []
-
-export
 actionsOfTransition : Transition -> List (List Action)
-actionsOfTransition t
-  = nub $ filter (\x => length x > 0) $ map actionsOfTrigger t.triggers
+actionsOfTransition (MkTransition _ _ ts)
+  = nub $ foldl (\acc, (MkTrigger _ _ _ as) => case as of Just as' => (List1.toList as') :: acc; Nothing => acc) [] ts
 
 export
-actionsOfTransitions : List Transition -> List (List Action)
-actionsOfTransitions ts
-  = nub $ flatten $ map actionsOfTransition ts
+actionsOfTransitions : List1 Transition -> List (List Action)
+actionsOfTransitions
+  = nub . flatten . List1.toList . (map actionsOfTransition)
 
 export
 actionsOfState : (State -> Maybe (List Action)) -> State -> List Action
-actionsOfState f s
-  = fromMaybe [] (f s)
+actionsOfState f
+  = (fromMaybe []) . f
 
 export
-actionsOfStates : (State -> Maybe (List Action)) -> List State -> List (List Action)
-actionsOfStates f ss
-  = nub $ filter (\x => length x > 0) $ map (actionsOfState f) ss
+actionsOfStates : (State -> Maybe (List Action)) -> List1 State -> List (List Action)
+actionsOfStates f
+  = nub . (filter (\x => length x > 0)) . (List1.toList) . (map (actionsOfState f))
 
 export
 outputActionFilter : Action -> Bool
@@ -243,7 +276,7 @@ outputActionFilter _                  = False
 export
 outputActions : Fsm -> List Action
 outputActions fsm
-  = let as = flatten $ map ((filter outputActionFilter) . flatten) [ actionsOfTransitions fsm.transitions
+  = let as = flatten $ map ((filter outputActionFilter) . flatten) [ actionsOfTransitions $ fsm.transitions
                                                                    , actionsOfStates (\x => x.onEnter) fsm.states
                                                                    , actionsOfStates (\x => x.onExit) fsm.states
                                                                    ] in
@@ -261,7 +294,7 @@ assignmentActionFilter _                      = False
 export
 assignmentActions : Fsm -> List Action
 assignmentActions fsm
-  = let as = flatten $ map ((filter assignmentActionFilter) . flatten ) [ actionsOfTransitions fsm.transitions
+  = let as = flatten $ map ((filter assignmentActionFilter) . flatten ) [ actionsOfTransitions $ fsm.transitions
                                                                         , actionsOfStates (\x => x.onEnter) fsm.states
                                                                         , actionsOfStates (\x => x.onExit) fsm.states
                                                                         ] in

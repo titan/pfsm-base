@@ -1,6 +1,7 @@
 module Pfsm.Data
 
 import Data.List
+import Data.List1
 import Data.Maybe
 import Data.SortedMap
 
@@ -378,10 +379,10 @@ Ord Event where
 public export
 record Trigger where
   constructor MkTrigger
-  participants: List Participant
+  participants: List1 Participant
   event: Event
   guard: Maybe TestExpression
-  actions: Maybe (List Action)
+  actions: Maybe (List1 Action)
 
 export
 Show Trigger where
@@ -403,7 +404,7 @@ record Transition where
   constructor MkTransition
   src: State
   dst: State
-  triggers: List Trigger
+  triggers: List1 Trigger
 
 export
 Show Transition where
@@ -422,8 +423,8 @@ record Fsm where
   constructor MkFsm
   name: Name
   model: List Parameter
-  participants: List Participant
-  events: List Event
-  states: List State
-  transitions: List Transition
+  participants: List1 Participant
+  events: List1 Event
+  states: List1 State
+  transitions: List1 Transition
   metas: Maybe (List Meta)
