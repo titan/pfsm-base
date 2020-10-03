@@ -134,6 +134,17 @@ namespace Data.List1
           then x :: filter p xs
           else filter p xs
 
+  public export
+  (++) : (1 xs, ys : List1 a) -> List1 a
+  (x :: []) ++ (y :: ys) = x :: (y :: ys)
+  (x :: xs) ++ (y :: []) = x :: (xs ++ [y])
+  (x :: xs) ++ (y :: ys) = x :: (xs ++ (y :: ys))
+
+  public export
+  flatten : List1 (List1 a) -> List1 a
+  flatten (x :: []) = x
+  flatten (x :: xs) = foldl (\acc, y => acc ++ y) x xs
+
 namespace Data.Vect
   export
   join : String -> Vect n String -> String
@@ -233,7 +244,7 @@ liftFromAndToStates ((MkTransition s d _) :: xs) (srcs, dsts) = liftFromAndToSta
 export
 startState : Fsm -> Maybe State
 startState fsm
-  = let (fs, ds) = liftFromAndToStates (List1.toList fsm.transitions ) (empty, empty) in
+  = let (fs, ds) = liftFromAndToStates (List1.toList fsm.transitions) (empty, empty) in
         case Data.SortedSet.toList (difference fs ds) of
              [] => Nothing
              (x :: xs) => Just x
@@ -276,10 +287,10 @@ outputActionFilter _                  = False
 export
 outputActions : Fsm -> List Action
 outputActions fsm
-  = let as = flatten $ map ((filter outputActionFilter) . flatten) [ actionsOfTransitions $ fsm.transitions
-                                                                   , actionsOfStates (\x => x.onEnter) fsm.states
-                                                                   , actionsOfStates (\x => x.onExit) fsm.states
-                                                                   ] in
+  = let as = List.flatten $ map ((filter outputActionFilter) . List.flatten) [ actionsOfTransitions $ fsm.transitions
+                                                                             , actionsOfStates (\x => x.onEnter) fsm.states
+                                                                             , actionsOfStates (\x => x.onExit) fsm.states
+                                                                             ] in
         nubBy outputActionEq as
   where
     outputActionEq : Action -> Action -> Bool
@@ -294,10 +305,10 @@ assignmentActionFilter _                      = False
 export
 assignmentActions : Fsm -> List Action
 assignmentActions fsm
-  = let as = flatten $ map ((filter assignmentActionFilter) . flatten ) [ actionsOfTransitions $ fsm.transitions
-                                                                        , actionsOfStates (\x => x.onEnter) fsm.states
-                                                                        , actionsOfStates (\x => x.onExit) fsm.states
-                                                                        ] in
+  = let as = List.flatten $ map ((filter assignmentActionFilter) . List.flatten ) [ actionsOfTransitions $ fsm.transitions
+                                                                                  , actionsOfStates (\x => x.onEnter) fsm.states
+                                                                                  , actionsOfStates (\x => x.onExit) fsm.states
+                                                                                  ] in
         nubBy assignmentActionEq as
   where
     assignmentActionEq : Action -> Action -> Bool
