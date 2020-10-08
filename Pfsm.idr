@@ -30,6 +30,25 @@ export
 nonblank : String -> Bool
 nonblank s = length s > Z
 
+export
+liftMaybeList : List (Maybe a) -> Maybe (List a)
+liftMaybeList [] = Nothing
+liftMaybeList xs = Just $ foldl (\acc, x => case x of Just x' => x' :: acc; Nothing => acc) [] xs
+
+export
+isAllJust : List (Maybe a) -> Bool
+isAllJust = foldl (\acc, x => acc && (isJust x)) True
+
+export
+liftEitherList : List (Either a b) -> (List a, List b)
+liftEitherList xs
+  = liftEitherList' xs [] []
+  where
+    liftEitherList' : List (Either a b) -> List a -> List b -> (List a, List b)
+    liftEitherList' []                as bs = (as, bs)
+    liftEitherList' ((Left a)  :: xs) as bs = liftEitherList' xs (a :: as) bs
+    liftEitherList' ((Right b) :: xs) as bs = liftEitherList' xs as (b :: bs)
+
 namespace Pfsm.Data.Meta
   export
   lookup : MetaKey -> Maybe (List Meta) -> Maybe MetaValue
