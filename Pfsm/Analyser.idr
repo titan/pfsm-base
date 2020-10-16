@@ -8,7 +8,6 @@ import Data.Maybe
 import Data.SortedMap
 import Text.Parser.Core
 import Text.Parser
-import Pfsm
 import Pfsm.Data
 import Pfsm.Parser
 
@@ -89,6 +88,24 @@ derefState _   []        = Nothing
 derefState ref (x :: xs) = if name x == ref
                               then Just x
                               else derefState ref xs
+export
+liftMaybeList : List (Maybe a) -> Maybe (List a)
+liftMaybeList [] = Nothing
+liftMaybeList xs = Just $ reverse $ foldl (\acc, x => case x of Just x' => x' :: acc; Nothing => acc) [] xs
+
+export
+isAllJust : List (Maybe a) -> Bool
+isAllJust = foldl (\acc, x => acc && (isJust x)) True
+
+export
+liftEitherList : List (Either a b) -> (List a, List b)
+liftEitherList xs
+  = liftEitherList' xs [] []
+  where
+    liftEitherList' : List (Either a b) -> List a -> List b -> (List a, List b)
+    liftEitherList' []                as bs = (reverse as, reverse bs)
+    liftEitherList' ((Left a)  :: xs) as bs = liftEitherList' xs (a :: as) bs
+    liftEitherList' ((Right b) :: xs) as bs = liftEitherList' xs as (b :: bs)
 
 --------------
 -- Analyser --

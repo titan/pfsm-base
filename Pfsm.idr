@@ -6,8 +6,13 @@ import Data.SortedMap
 import Data.SortedSet
 import Data.Strings
 import Data.Vect
+import System
+import System.File
 
+import public Pfsm.Analyser
+import Pfsm.Checker
 import Pfsm.Data
+import Pfsm.Parser
 
 -------------
 -- Utility --
@@ -31,23 +36,10 @@ nonblank : String -> Bool
 nonblank s = length s > Z
 
 export
-liftMaybeList : List (Maybe a) -> Maybe (List a)
-liftMaybeList [] = Nothing
-liftMaybeList xs = Just $ foldl (\acc, x => case x of Just x' => x' :: acc; Nothing => acc) [] xs
-
-export
-isAllJust : List (Maybe a) -> Bool
-isAllJust = foldl (\acc, x => acc && (isJust x)) True
-
-export
-liftEitherList : List (Either a b) -> (List a, List b)
-liftEitherList xs
-  = liftEitherList' xs [] []
-  where
-    liftEitherList' : List (Either a b) -> List a -> List b -> (List a, List b)
-    liftEitherList' []                as bs = (as, bs)
-    liftEitherList' ((Left a)  :: xs) as bs = liftEitherList' xs (a :: as) bs
-    liftEitherList' ((Right b) :: xs) as bs = liftEitherList' xs as (b :: bs)
+liftListIO : List (IO a) -> IO (List a)
+liftListIO xs
+  = do xs' <- foldl (\acc, x => do acc' <- acc; x' <- x; pure (x' :: acc')) (pure []) xs
+       pure (reverse xs')
 
 namespace Pfsm.Data.Meta
   export
@@ -60,6 +52,14 @@ namespace Pfsm.Data.Meta
       lookup' k (m@(MkMeta k' v) :: ms) acc = if k == k'
                                                  then Just v
                                                  else lookup' k ms acc
+
+export
+liftReferences : List Parameter -> List String
+liftReferences params
+  = foldl (\acc, (_, _, ms) =>
+            case lookup "reference" ms of
+                 Just (MVString ref) => ref :: acc
+                 _ => acc) [] params
 
 namespace Data.Strings
   export
@@ -114,6 +114,12 @@ namespace Data.List
   export
   flatten : List (List a) -> List a
   flatten = foldl (\acc, x => acc ++ x) []
+
+export
+joinIO : String -> List (IO String) -> IO String
+joinIO sep xs
+ = do xs' <- liftListIO xs
+      pure (List.join sep xs')
 
 namespace Data.List1
   export
@@ -341,3 +347,25 @@ assignmentActions fsm
 export
 guardsOfTransition : Transition -> List TestExpression
 guardsOfTransition t = Data.SortedSet.toList $ foldl (\acc, (MkTrigger _ _ x _) => case x of Nothing => acc; Just g => insert g acc) empty t.triggers
+
+
+---------
+-- Fsm --
+---------
+
+export
+loadFsm : String -> Either String Fsm
+loadFsm src
+  = do (sexp, _) <- mapError parseErrorToString $ parseSExp src
+       (fsm, _) <- mapError parseErrorToString $ analyse sexp
+       fsm' <- mapError checkersErrorToString $ check fsm defaultCheckingRules
+       pure fsm'
+
+export
+loadFsmFromFile : String -> IO (Either String Fsm)
+loadFsmFromFile file
+  = do Right content <- readFile file
+       | Left err => pure (Left $ show err)
+       case loadFsm content of
+            Left err => pure (Left err)
+            Right fsm => pure (Right fsm)

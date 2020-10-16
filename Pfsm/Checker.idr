@@ -1,7 +1,7 @@
 module Pfsm.Checker
 
 import Data.List
-import Pfsm
+import Data.String.Extra
 import Pfsm.Data
 
 -------------
