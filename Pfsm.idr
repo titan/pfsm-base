@@ -186,6 +186,27 @@ namespace Prelude.Types.Either
 -- Event --
 -----------
 
+public export
+data FsmIdStyle = FsmIdStyleGenerate
+                | FsmIdStyleSession
+                | FsmIdStyleUrl
+
+export
+Eq FsmIdStyle where
+  (==) FsmIdStyleGenerate FsmIdStyleGenerate = True
+  (==) FsmIdStyleSession  FsmIdStyleSession  = True
+  (==) FsmIdStyleUrl      FsmIdStyleUrl      = True
+  (==) _                  _                  = False
+
+export
+fsmIdStyleOfEvent : Event -> FsmIdStyle
+fsmIdStyleOfEvent (MkEvent _ _ metas)
+  = case lookup "gateway.fsmid-style" metas of
+         Just (MVString "generate") => FsmIdStyleGenerate
+         Just (MVString "session") => FsmIdStyleSession
+         Just (MVString "url") => FsmIdStyleUrl
+         _ => FsmIdStyleUrl
+
 export
 parametersOfEvents : List1 Event -> List Parameter
 parametersOfEvents = (nubBy (\x, y => fst x == fst y)) . flatten . (map params) . List1.toList
