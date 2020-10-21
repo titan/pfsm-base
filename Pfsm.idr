@@ -56,10 +56,18 @@ namespace Pfsm.Data.Meta
 export
 liftReferences : List Parameter -> List String
 liftReferences params
-  = foldl (\acc, (_, _, ms) =>
-            case lookup "reference" ms of
-                 Just (MVString ref) => ref :: acc
-                 _ => acc) [] params
+  = nub $ foldl (\acc, (_, t, ms) =>
+            case t of
+                 TRecord n params' => acc ++ liftReferences params'
+                 TList (TRecord n params') => acc ++ liftReferences params'
+                 TDict _ (TRecord n params') => acc ++ liftReferences params'
+                 _ => liftReference acc ms) [] params
+  where
+    liftReference : List String -> Maybe (List Meta) -> List String
+    liftReference acc metas
+      = case lookup "reference" metas of
+             Just (MVString ref) => ref :: acc
+             _ => acc
 
 namespace Data.Strings
   export
