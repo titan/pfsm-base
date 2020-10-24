@@ -14,6 +14,18 @@ import Pfsm.Checker
 import Pfsm.Data
 import Pfsm.Parser
 
+public export
+data FsmIdStyle = FsmIdStyleGenerate
+                | FsmIdStyleSession
+                | FsmIdStyleUrl
+
+export
+Eq FsmIdStyle where
+  (==) FsmIdStyleGenerate FsmIdStyleGenerate = True
+  (==) FsmIdStyleSession  FsmIdStyleSession  = True
+  (==) FsmIdStyleUrl      FsmIdStyleUrl      = True
+  (==) _                  _                  = False
+
 -------------
 -- Utility --
 -------------
@@ -193,18 +205,6 @@ namespace Prelude.Types.Either
 -----------
 -- Event --
 -----------
-
-public export
-data FsmIdStyle = FsmIdStyleGenerate
-                | FsmIdStyleSession
-                | FsmIdStyleUrl
-
-export
-Eq FsmIdStyle where
-  (==) FsmIdStyleGenerate FsmIdStyleGenerate = True
-  (==) FsmIdStyleSession  FsmIdStyleSession  = True
-  (==) FsmIdStyleUrl      FsmIdStyleUrl      = True
-  (==) _                  _                  = False
 
 export
 fsmIdStyleOfEvent : Event -> FsmIdStyle
@@ -398,3 +398,10 @@ loadFsmFromFile file
        case loadFsm content of
             Left err => pure (Left err)
             Right fsm => pure (Right fsm)
+
+export
+fsmIdStyleOfFsm : Fsm -> FsmIdStyle
+fsmIdStyleOfFsm (MkFsm _ _ _ _ _ _ metas)
+  = case lookup "gateway.fsmid-style" metas of
+         Just (MVString "session") => FsmIdStyleSession
+         _ => FsmIdStyleUrl
