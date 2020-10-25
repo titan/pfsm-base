@@ -66,6 +66,13 @@ namespace Pfsm.Data.Meta
                                                  else lookup' k ms acc
 
 export
+displayName : String -> Maybe (List Meta) -> String
+displayName defaultValue metas
+  = case lookup "display-name" metas of
+         Just (MVString name) => name
+         _ => defaultValue
+
+export
 liftReferences : List Parameter -> List String
 liftReferences params
   = nub $ foldl (\acc, (_, t, ms) =>
