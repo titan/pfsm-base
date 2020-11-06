@@ -1,1 +1,4 @@
+NAME=pfsm-base
 BUILDDIR=/dev/shm/$(NAME-LINK)
+PKGPREFIX=Pfsm
+TARGET=$(BUILDDIR)/build/ttc/$(PKGPREFIX).ttc
