@@ -26,6 +26,20 @@ Eq FsmIdStyle where
   (==) FsmIdStyleUrl      FsmIdStyleUrl      = True
   (==) _                  _                  = False
 
+public export
+data MappingStyle = MappingStyleOneToOne
+                  | MappingStyleOneToMany
+                  | MappingStyleManyToOne
+                  | MappingStyleManyToMany
+
+export
+Eq MappingStyle where
+  (==) MappingStyleOneToOne   MappingStyleOneToOne   = True
+  (==) MappingStyleOneToMany  MappingStyleOneToMany  = True
+  (==) MappingStyleManyToOne  MappingStyleManyToOne  = True
+  (==) MappingStyleManyToMany MappingStyleManyToMany = True
+  (==) _                      _                      = False
+
 -------------
 -- Utility --
 -------------
@@ -383,7 +397,6 @@ assignmentActions fsm
 export
 guardsOfTransition : Transition -> List TestExpression
 guardsOfTransition t = Data.SortedSet.toList $ foldl (\acc, (MkTrigger _ _ x _) => case x of Nothing => acc; Just g => insert g acc) empty t.triggers
-
 
 ---------
 -- Fsm --
