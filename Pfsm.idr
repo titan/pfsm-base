@@ -312,6 +312,13 @@ expressionsOfTestExpression e
 -- State --
 -----------
 
+export
+liftActionsFromState : State -> List Action
+liftActionsFromState (MkState _ (Just enas) (Just exas) _) = enas ++ exas
+liftActionsFromState (MkState _ (Just enas) Nothing     _) = enas
+liftActionsFromState (MkState _ Nothing     (Just exas) _) = exas
+liftActionsFromState (MkState _ Nothing     Nothing     _) = []
+
 liftFromAndToStates : List Transition -> (SortedSet State, SortedSet State) -> (SortedSet State, SortedSet State)
 liftFromAndToStates []                           acc          = acc
 liftFromAndToStates ((MkTransition s d _) :: xs) (srcs, dsts) = liftFromAndToStates xs (insert s srcs, insert d dsts)
