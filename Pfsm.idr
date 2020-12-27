@@ -14,32 +14,6 @@ import Pfsm.Checker
 import Pfsm.Data
 import Pfsm.Parser
 
-public export
-data FsmIdStyle = FsmIdStyleGenerate
-                | FsmIdStyleSession
-                | FsmIdStyleUrl
-
-export
-Eq FsmIdStyle where
-  (==) FsmIdStyleGenerate FsmIdStyleGenerate = True
-  (==) FsmIdStyleSession  FsmIdStyleSession  = True
-  (==) FsmIdStyleUrl      FsmIdStyleUrl      = True
-  (==) _                  _                  = False
-
-public export
-data MappingStyle = MappingStyleOneToOne
-                  | MappingStyleOneToMany
-                  | MappingStyleManyToOne
-                  | MappingStyleManyToMany
-
-export
-Eq MappingStyle where
-  (==) MappingStyleOneToOne   MappingStyleOneToOne   = True
-  (==) MappingStyleOneToMany  MappingStyleOneToMany  = True
-  (==) MappingStyleManyToOne  MappingStyleManyToOne  = True
-  (==) MappingStyleManyToMany MappingStyleManyToMany = True
-  (==) _                      _                      = False
-
 -------------
 -- Utility --
 -------------
@@ -226,15 +200,6 @@ namespace Prelude.Types.Either
 -----------
 -- Event --
 -----------
-
-export
-fsmIdStyleOfEvent : Event -> FsmIdStyle
-fsmIdStyleOfEvent (MkEvent _ _ metas)
-  = case lookup "gateway.fsmid-style" metas of
-         Just (MVString "generate") => FsmIdStyleGenerate
-         Just (MVString "session") => FsmIdStyleSession
-         Just (MVString "url") => FsmIdStyleUrl
-         _ => FsmIdStyleUrl
 
 export
 parametersOfEvents : List1 Event -> List Parameter
@@ -425,10 +390,3 @@ loadFsmFromFile file
        case loadFsm content of
             Left err => pure (Left err)
             Right fsm => pure (Right fsm)
-
-export
-fsmIdStyleOfFsm : Fsm -> FsmIdStyle
-fsmIdStyleOfFsm (MkFsm _ _ _ _ _ _ metas)
-  = case lookup "gateway.fsmid-style" metas of
-         Just (MVString "session") => FsmIdStyleSession
-         _ => FsmIdStyleUrl
