@@ -2,6 +2,4 @@ package pfsm
 
 modules = Pfsm.Analyser, Pfsm.Checker, Pfsm.Data, Pfsm.Matrix, Pfsm.Parser, Pfsm
 depends = contrib
-main = Pfsm.FsmLint
-executable = fsm-lint
 

@@ -73,16 +73,18 @@ public export
 data SExp = IntAtom Int
           | RealAtom Double
           | SymbolAtom String
+          | CharAtom Char
           | StringAtom String
           | SExpList (List SExp)
 
 export
 Show SExp where
-  showPrec d (IntAtom n)     = showCon d "IntAtom" $ showArg n
-  showPrec d (RealAtom n)    = showCon d "RealAtom" $ showArg n
-  showPrec d (SymbolAtom s)  = showCon d "SymbolAtom" $ showArg s
-  showPrec d (StringAtom s)  = showCon d "StringAtom" $ showArg s
-  showPrec d (SExpList l)    = showCon d "SExpList" $ showArg l
+  showPrec d (IntAtom n)    = showCon d "IntAtom" $ showArg n
+  showPrec d (RealAtom n)   = showCon d "RealAtom" $ showArg n
+  showPrec d (SymbolAtom s) = showCon d "SymbolAtom" $ showArg s
+  showPrec d (CharAtom c)   = showCon d "CharAtom" $ showArg c
+  showPrec d (StringAtom s) = showCon d "StringAtom" $ showArg s
+  showPrec d (SExpList l)   = showCon d "SExpList" $ showArg l
 
 
 Rule : Type -> Type
@@ -97,6 +99,9 @@ real = map RealAtom $ match FKReal
 identifier : Rule SExp
 identifier = map SymbolAtom $ match FKIdentifier
 
+char : Rule SExp
+char = map CharAtom $ match FKChar
+
 string : Rule SExp
 string = map StringAtom $ match FKString
 
@@ -104,6 +109,7 @@ sexp : Rule SExp
 sexp = int
    <|> real
    <|> identifier
+   <|> char
    <|> string
    <|> do
        match FKOpenParen

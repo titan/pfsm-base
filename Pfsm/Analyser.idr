@@ -130,6 +130,22 @@ anySymbol
                          SymbolAtom s => Just s
                          _ => Nothing)
 
+char : Char -> Rule Char
+char c
+  = terminal ("Expected char " ++ (bold (show c)))
+             (\x => case x of
+                         CharAtom c' => if c == c'
+                                             then Just c
+                                             else Nothing
+                         _ => Nothing)
+
+anyChar : Rule Char
+anyChar
+  = terminal "Expected char"
+             (\x => case x of
+                         CharAtom c => Just c
+                         _ => Nothing)
+
 string : String -> Rule String
 string s
   = terminal ("Expected string \"" ++ (bold s) ++ "\"")
@@ -401,6 +417,11 @@ realLiteral : Rule Expression
 realLiteral
   = do x <- real
        pure (RealLiteralExpression x)
+
+charLiteral : Rule Expression
+charLiteral
+  = do x <- anyChar
+       pure (CharLiteralExpression x)
 
 stringLiteral : Rule Expression
 stringLiteral

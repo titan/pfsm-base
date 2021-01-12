@@ -130,7 +130,7 @@ Show Tipe where
   show (TList t)      = "(list " ++ (show t) ++ ")"
   show (TDict k v)    = "(dict " ++ (show k) ++ " " ++ (show v) ++ ")"
   show (TArrow p r)   = "(-> " ++ (show p) ++ " " ++ (show r) ++ ")"
-  show (TRecord n ts)   = "(record " ++ (show n) ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" ts) ++ ")"
+  show (TRecord n ts) = "(record " ++ (show n) ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" ts) ++ ")"
   show TUnit          = "()"
 
 export
@@ -153,6 +153,7 @@ data Expression = ApplicationExpression String (List Expression)
                 | IdentifyExpression String
                 | IntegerLiteralExpression Int
                 | RealLiteralExpression Double
+                | CharLiteralExpression Char
                 | StringLiteralExpression String
 
 export
@@ -162,7 +163,8 @@ Show Expression where
   show (IdentifyExpression s)       = s
   show (IntegerLiteralExpression i) = show i
   show (RealLiteralExpression r)    = show r
-  show (StringLiteralExpression s)  = s
+  show (CharLiteralExpression c)    = show c
+  show (StringLiteralExpression s)  = show s
 
 export
 Eq Expression where
@@ -171,6 +173,7 @@ Eq Expression where
   (==) (IdentifyExpression i1)        (IdentifyExpression i2)        = i1 == i2
   (==) (IntegerLiteralExpression i1)  (IntegerLiteralExpression i2)  = i1 == i2
   (==) (RealLiteralExpression r1)     (RealLiteralExpression r2)     = r1 == r2
+  (==) (CharLiteralExpression c1)     (CharLiteralExpression c2)     = c1 == c2
   (==) (StringLiteralExpression s1)   (StringLiteralExpression s2)   = s1 == s2
   (==) _                              _                              = False
 
@@ -185,6 +188,7 @@ inferType env (BooleanExpression _)        = Just (TPrimType PTBool)
 inferType env i@(IdentifyExpression _)     = lookup i env
 inferType env (IntegerLiteralExpression _) = Just (TPrimType PTInt)
 inferType env (RealLiteralExpression _)    = Just (TPrimType PTReal)
+inferType env (CharLiteralExpression _)    = Just (TPrimType PTChar)
 inferType env (StringLiteralExpression _)  = Just (TPrimType PTString)
 inferType _   _                            = Nothing
 
