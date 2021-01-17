@@ -41,18 +41,6 @@ liftListIO xs
   = do xs' <- foldl (\acc, x => do acc' <- acc; x' <- x; pure (x' :: acc')) (pure []) xs
        pure (reverse xs')
 
-namespace Pfsm.Data.Meta
-  export
-  lookup : MetaKey -> Maybe (List Meta) -> Maybe MetaValue
-  lookup k Nothing   = Nothing
-  lookup k (Just ms) = lookup' k ms Nothing
-    where
-      lookup' : MetaKey -> List Meta -> Maybe MetaValue -> Maybe MetaValue
-      lookup' k []                      acc = acc
-      lookup' k (m@(MkMeta k' v) :: ms) acc = if k == k'
-                                                 then Just v
-                                                 else lookup' k ms acc
-
 export
 displayName : String -> Maybe (List Meta) -> String
 displayName defaultValue metas
@@ -99,91 +87,11 @@ namespace Data.Strings
                                                  then replaceAll' old new (drop (minus (length old) 1) xs) $ acc ++ new
                                                  else replaceAll' old new xs $ acc ++ [x]
 
-namespace Data.List
-  export
-  index : Eq a => a -> List a -> Maybe Nat
-  index a xs
-    = index' a xs Z
-    where
-      index' : Eq elem => elem -> List elem -> Nat -> Maybe Nat
-      index' a []        _ = Nothing
-      index' a (x :: xs) i = if a == x
-                                then Just i
-                                else index' a xs (S i)
-
-  export
-  enumerate : List a -> List (Nat, a)
-  enumerate
-    = enumerate' [] Z
-    where
-      enumerate' : List (Nat, a) -> Nat -> List a -> List (Nat, a)
-      enumerate' acc _   []        = reverse acc
-      enumerate' acc idx (x :: xs) = enumerate' ((idx, x) :: acc) (S idx) xs
-
-  export
-  join : String -> List String -> String
-  join _   []        = ""
-  join sep [x]       = x
-  join sep (x :: xs) = foldl (\acc, y => acc ++ sep ++ y) x xs
-
-  export
-  flatten : List (List a) -> List a
-  flatten = foldl (\acc, x => acc ++ x) []
-
 export
 joinIO : String -> List (IO String) -> IO String
 joinIO sep xs
  = do xs' <- liftListIO xs
       pure (List.join sep xs')
-
-namespace Data.List1
-  export
-  enumerate : List1 a -> List1 (Nat, a)
-  enumerate (x :: xs)
-    = enumerate' ((Z, x) :: []) (S Z) xs
-    where
-      enumerate' : List1 (Nat, a) -> Nat -> List a -> List1 (Nat, a)
-      enumerate' acc _   []        = reverse acc
-      enumerate' acc idx (x :: xs) = enumerate' ((idx, x) :: (List1.toList acc)) (S idx) xs
-
-  export
-  join : String -> List1 String -> String
-  join sep (x :: []) = x
-  join sep (x :: xs) = foldl (\acc, y => acc ++ sep ++ y) x xs
-
-  export
-  length : List1 a -> Nat
-  length (_ :: xs) = 1 + length xs
-
-  export
-  index : Eq a => a -> List1 a -> Maybe Nat
-  index a (x :: xs)
-    = if a == x
-         then Just Z
-         else do i <- index a xs
-                 pure (i + 1)
-
-  export
-  elemBy : (a -> a -> Bool) -> a -> List1 a -> Bool
-  elemBy p e (x :: xs) = p e x || elemBy p e xs
-
-  public export
-  filter : (p : a -> Bool) -> List1 a -> List a
-  filter p (x :: xs)
-     = if p x
-          then x :: filter p xs
-          else filter p xs
-
-  public export
-  (++) : (1 xs, ys : List1 a) -> List1 a
-  (x :: []) ++ (y :: ys) = x :: (y :: ys)
-  (x :: xs) ++ (y :: []) = x :: (xs ++ [y])
-  (x :: xs) ++ (y :: ys) = x :: (xs ++ (y :: ys))
-
-  public export
-  flatten : List1 (List1 a) -> List1 a
-  flatten (x :: []) = x
-  flatten (x :: xs) = foldl (\acc, y => acc ++ y) x xs
 
 namespace Data.Vect
   export
@@ -197,30 +105,9 @@ namespace Prelude.Types.Either
   mapError : (a -> c) -> Either a b -> Either c b
   mapError f e = either (Left . f) (Right . id) e
 
------------
--- Event --
------------
-
-export
-parametersOfEvents : List1 Event -> List Parameter
-parametersOfEvents = (nubBy (\x, y => fst x == fst y)) . flatten . (map params) . List1.toList
-
 ----------
 -- Tipe --
 ----------
-
-export
-constructTArrow : List Tipe -> Tipe -> Tipe
-constructTArrow []        acc = acc
-constructTArrow (x :: xs) acc = constructTArrow xs $ (TArrow x acc)
-
-export
-rootEnv : Fsm -> SortedMap Expression Tipe
-rootEnv fsm
-  = let eps = parametersOfEvents fsm.events
-        env' = foldl (\acc, (n, t, _) => insert (IdentifyExpression ("@" ++ n)) t acc) Data.SortedMap.empty fsm.model
-        env = foldl (\acc, (n, t, _) => insert (IdentifyExpression n) t acc) env' eps in
-        env
 
 export
 liftRecords : List Parameter -> List Tipe
@@ -301,66 +188,6 @@ stopState : Fsm -> SortedSet State
 stopState fsm
   = let (fs, ds) = liftFromAndToStates (List1.toList fsm.transitions) (empty, empty) in
         difference ds fs
-
-------------
--- Action --
-------------
-
-export
-actionsOfTransition : Transition -> List (List Action)
-actionsOfTransition (MkTransition _ _ ts)
-  = nub $ foldl (\acc, (MkTrigger _ _ _ as) => case as of Just as' => (List1.toList as') :: acc; Nothing => acc) [] ts
-
-export
-actionsOfTransitions : List1 Transition -> List (List Action)
-actionsOfTransitions
-  = nub . flatten . List1.toList . (map actionsOfTransition)
-
-export
-actionsOfState : (State -> Maybe (List Action)) -> State -> List Action
-actionsOfState f
-  = (fromMaybe []) . f
-
-export
-actionsOfStates : (State -> Maybe (List Action)) -> List1 State -> List (List Action)
-actionsOfStates f
-  = nub . (filter (\x => length x > 0)) . (List1.toList) . (map (actionsOfState f))
-
-export
-outputActionFilter : Action -> Bool
-outputActionFilter (OutputAction _ _) = True
-outputActionFilter _                  = False
-
-export
-outputActions : Fsm -> List Action
-outputActions fsm
-  = let as = List.flatten $ map ((filter outputActionFilter) . List.flatten) [ actionsOfTransitions $ fsm.transitions
-                                                                             , actionsOfStates (\x => x.onEnter) fsm.states
-                                                                             , actionsOfStates (\x => x.onExit) fsm.states
-                                                                             ] in
-        nubBy outputActionEq as
-  where
-    outputActionEq : Action -> Action -> Bool
-    outputActionEq (OutputAction n1 _) (OutputAction n2 _) = n1 == n2
-    outputActionEq _                   _                   = False
-
-export
-assignmentActionFilter : Action -> Bool
-assignmentActionFilter (AssignmentAction _ _) = True
-assignmentActionFilter _                      = False
-
-export
-assignmentActions : Fsm -> List Action
-assignmentActions fsm
-  = let as = List.flatten $ map ((filter assignmentActionFilter) . List.flatten ) [ actionsOfTransitions $ fsm.transitions
-                                                                                  , actionsOfStates (\x => x.onEnter) fsm.states
-                                                                                  , actionsOfStates (\x => x.onExit) fsm.states
-                                                                                  ] in
-        nubBy assignmentActionEq as
-  where
-    assignmentActionEq : Action -> Action -> Bool
-    assignmentActionEq (AssignmentAction l1 r1) (AssignmentAction l2 r2) = l1 == l2 && r1 == r2
-    assignmentActionEq _                        _                        = False
 
 ----------------
 -- Transition --
