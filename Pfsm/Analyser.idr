@@ -262,7 +262,7 @@ meta
 
 mutual
   tipe : Rule TipeShadow
-  tipe = primtype <|> list <|> dict <|> rekord
+  tipe = primtype <|> list <|> dict <|> rekord <|> void
     where
       prim : Rule PrimType
       prim = terminal ("Expected one of strings: " ++ (foldl (\ a, e => a ++ " " ++ e) "" primTypeStrs))
@@ -321,6 +321,11 @@ mutual
                  n <- anySymbol
                  ts <- many thz
                  pure (TRecordShadow n ts)
+
+      void : Rule TipeShadow
+      void
+        = do symbol "void"
+             pure TUnitShadow
 
   thz : Rule ParameterShadow
   thz
@@ -961,7 +966,9 @@ fsm
       = let (es, ts') = unzipEitherList $ map (shadowToTipe env) ts in
             if length es > Z
                then Left (List.join "\n" es)
-               else Right (MkPort n (constructTArrow (reverse ts') TUnit))
+               else case (reverse ts') of
+                         [] => Right (MkPort n TUnit)
+                         (x :: xs) => Right (MkPort n (constructTArrow xs x))
 
     constructFsm : String -> List Parameter -> List Participant -> List Event -> List State -> List Transition -> Maybe (List Meta) -> List Port -> Either String Fsm
     constructFsm n m ps es ss ts ms pts
