@@ -260,7 +260,7 @@ Show Expression where
   show (IntegerLiteralExpression i) = show i
   show (RealLiteralExpression r)    = show r
   show (CharLiteralExpression c)    = show c
-  show (StringLiteralExpression s)  = show s
+  show (StringLiteralExpression s)  = s
 
 export
 Eq Expression where
@@ -552,12 +552,12 @@ Ord Transition where
 export
 actionsOfTransition : Transition -> List (List Action)
 actionsOfTransition (MkTransition _ _ ts)
-  = nub $ foldl (\acc, (MkTrigger _ _ _ as) => case as of Just as' => (List1.toList as') :: acc; Nothing => acc) [] ts
+  = foldl (\acc, (MkTrigger _ _ _ as) => case as of Just as' => (List1.toList as') :: acc; Nothing => acc) [] ts
 
 export
 actionsOfTransitions : List1 Transition -> List (List Action)
 actionsOfTransitions
-  = nub . flatten . List1.toList . (map actionsOfTransition)
+  = flatten . List1.toList . (map actionsOfTransition)
 
 export
 actionsOfState : (State -> Maybe (List Action)) -> State -> List Action
@@ -567,7 +567,7 @@ actionsOfState f
 export
 actionsOfStates : (State -> Maybe (List Action)) -> List1 State -> List (List Action)
 actionsOfStates f
-  = nub . (filter (\x => length x > 0)) . (List1.toList) . (map (actionsOfState f))
+  = (filter (\x => length x > 0)) . (List1.toList) . (map (actionsOfState f))
 
 public export
 record Fsm where
@@ -587,17 +587,13 @@ outputActionFilter (OutputAction _ _) = True
 outputActionFilter _                  = False
 
 export
-outputActions : Fsm -> List Action
-outputActions fsm
-  = let as = List.flatten $ map ((filter outputActionFilter) . List.flatten) [ actionsOfTransitions $ fsm.transitions
-                                                                             , actionsOfStates (\x => x.onEnter) fsm.states
-                                                                             , actionsOfStates (\x => x.onExit) fsm.states
+liftOutputActions : List1 State -> List1 Transition -> List Action
+liftOutputActions states transitions
+  = let as = List.flatten $ map ((filter outputActionFilter) . List.flatten) [ actionsOfTransitions $ transitions
+                                                                             , actionsOfStates (\x => x.onEnter) states
+                                                                             , actionsOfStates (\x => x.onExit) states
                                                                              ] in
-        nubBy outputActionEq as
-  where
-    outputActionEq : Action -> Action -> Bool
-    outputActionEq (OutputAction n1 _) (OutputAction n2 _) = n1 == n2
-    outputActionEq _                   _                   = False
+        as
 
 export
 assignmentActionFilter : Action -> Bool
@@ -605,17 +601,13 @@ assignmentActionFilter (AssignmentAction _ _) = True
 assignmentActionFilter _                      = False
 
 export
-assignmentActions : Fsm -> List Action
-assignmentActions fsm
-  = let as = List.flatten $ map ((filter assignmentActionFilter) . List.flatten ) [ actionsOfTransitions $ fsm.transitions
-                                                                                  , actionsOfStates (\x => x.onEnter) fsm.states
-                                                                                  , actionsOfStates (\x => x.onExit) fsm.states
+liftAssignmentActions : List1 State -> List1 Transition -> List Action
+liftAssignmentActions states transitions
+  = let as = List.flatten $ map ((filter assignmentActionFilter) . List.flatten ) [ actionsOfTransitions $ transitions
+                                                                                  , actionsOfStates (\x => x.onEnter) states
+                                                                                  , actionsOfStates (\x => x.onExit) states
                                                                                   ] in
-        nubBy assignmentActionEq as
-  where
-    assignmentActionEq : Action -> Action -> Bool
-    assignmentActionEq (AssignmentAction l1 r1) (AssignmentAction l2 r2) = l1 == l2 && r1 == r2
-    assignmentActionEq _                        _                        = False
+        as
 
 export
 rootEnv : Fsm -> SortedMap Expression Tipe

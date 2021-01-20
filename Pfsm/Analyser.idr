@@ -41,7 +41,7 @@ mutual
                   | TListShadow (Either String TipeShadow)
                   | TDictShadow PrimType (Either String TipeShadow)
                   | TArrowShadow TipeShadow TipeShadow
-                  | TRecordShadow Name (List ParameterShadow)
+                  | TRecordShadow (List ParameterShadow)
                   | TUnitShadow
 
   ParameterShadow : Type
@@ -102,24 +102,23 @@ derefState _   []        = Nothing
 derefState ref (x :: xs) = if name x == ref
                               then Just x
                               else derefState ref xs
+
 export
 liftMaybeList : List (Maybe a) -> Maybe (List a)
 liftMaybeList [] = Nothing
 liftMaybeList xs = Just $ reverse $ foldl (\acc, x => case x of Just x' => x' :: acc; Nothing => acc) [] xs
 
-export
-isAllJust : List (Maybe a) -> Bool
-isAllJust = foldl (\acc, x => acc && (isJust x)) True
-
-export
-unzipEitherList : List (Either a b) -> (List a, List b)
-unzipEitherList xs
-  = unzipEitherList' xs [] []
+liftEitherList : List (Either a b) -> Either (List a) (List b)
+liftEitherList xs
+  = let (as, bs) = liftEitherList' xs [] [] in
+        if length as > Z
+           then Left as
+           else Right bs
   where
-    unzipEitherList' : List (Either a b) -> List a -> List b -> (List a, List b)
-    unzipEitherList' []                as bs = (reverse as, reverse bs)
-    unzipEitherList' ((Left a)  :: xs) as bs = unzipEitherList' xs (a :: as) bs
-    unzipEitherList' ((Right b) :: xs) as bs = unzipEitherList' xs as (b :: bs)
+    liftEitherList' : List (Either a b) -> List a -> List b -> (List a, List b)
+    liftEitherList' []                as bs = (reverse as, reverse bs)
+    liftEitherList' ((Left a)  :: xs) as bs = liftEitherList' xs (a :: as) bs
+    liftEitherList' ((Right b) :: xs) as bs = liftEitherList' xs as (b :: bs)
 
 --------------
 -- Analyser --
@@ -318,9 +317,8 @@ mutual
           rekord' : Rule TipeShadow
           rekord'
             = do symbol "record"
-                 n <- anySymbol
                  ts <- many thz
-                 pure (TRecordShadow n ts)
+                 pure (TRecordShadow ts)
 
       void : Rule TipeShadow
       void
@@ -795,32 +793,28 @@ fsm
        n <- anySymbol
        is <- many item
        let uz = unzipItems is ([], [], [], [], [], [], [], [])
-       case deshadowDefType $ (Builtin.fst . snd . snd . snd . snd . snd . snd) uz of
-            Left e => fail e
-            Right cts => let (mers, m) = unzipEitherList $ map (deshadowParameter cts) $ fst uz in
-                             if length mers > Z
-                                then do fail ("Unsolved types in model:\n" ++ (List.join "\n" mers))
-                                else let (eers, es) = unzipEitherList $ map (deshadowEvent cts) $ (Builtin.fst . snd . snd) uz in
-                                         if length eers > Z
-                                            then do fail ("Unsolved types in events:\n" ++ (List.join "\n" eers))
-                                            else let (pters, pts) = unzipEitherList $ map (deshadowPort cts) $ (snd . snd . snd . snd . snd . snd . snd) uz in
-                                                     if length pters > Z
-                                                        then do fail ("Unsolved types in ports:\n" ++ (List.join "\n" pters))
-                                                        else let (sers, ss) = unzipEitherList $ map (deshadowState pts) $ (Builtin.fst . snd . snd . snd) uz in
-                                                                 if length sers > Z
-                                                                    then do fail ("Unsolved error in states:\n" ++ (List.join "\n" sers))
-                                                                    else let ps = (fst . snd) uz
-                                                                             ms = toMaybe $ (Builtin.fst . snd . snd . snd . snd . snd) uz
-                                                                             (ters, ts) = unzipEitherList $ map (deshadowTransition ps es ss pts) ((Builtin.fst . snd . snd . snd . snd) uz) in
-                                                                             if length ters > Z
-                                                                                then do fail ("Unsolved error:\n" ++ (List.join "\n" ters))
-                                                                                else case constructFsm n m ps es ss ts ms pts of
-                                                                                          Right fsm => do pure fsm
-                                                                                          Left err => do fail err
+       let ps = (fst . snd) uz
+       let ms = toMaybe $ (Builtin.fst . snd . snd . snd . snd . snd) uz
+       cts <- liftFromEither $ deshadowDefType $ (Builtin.fst . snd . snd . snd . snd . snd . snd) uz
+       m <- liftFromEither $ combineErrors "Unsolved types in model:\n" $ liftEitherList $ map (deshadowParameter cts) $ fst uz
+       es <- liftFromEither $ combineErrors "Unsolved types in events:\n" $ liftEitherList $ map (deshadowEvent cts) $ (Builtin.fst . snd . snd) uz
+       pts <- liftFromEither $ combineErrors "Unsolved types in ports:\n" $ liftEitherList $ map (deshadowPort cts) $ (snd . snd . snd . snd . snd . snd . snd) uz
+       ss <- liftFromEither $ combineErrors "Unsolved error in states:\n" $ liftEitherList $ map (deshadowState pts) $ (Builtin.fst . snd . snd . snd) uz
+       ts <- liftFromEither $ combineErrors "Unsolved error:\n" $ liftEitherList $ map (deshadowTransition ps es ss pts) ((Builtin.fst . snd . snd . snd . snd) uz)
+       fsm <- liftFromEither $ constructFsm n m ps es ss ts ms pts
+       pure fsm
 
   where
     liftFromMaybe : Maybe a -> Either String (Maybe a)
     liftFromMaybe x = Right x
+
+    liftFromEither : Either String b -> Grammar SExp False b
+    liftFromEither (Left e) = fail e
+    liftFromEither (Right b) = pure b
+
+    combineErrors : String -> Either (List String) (List a) -> Either String (List a)
+    combineErrors pre (Left ss) = Left (pre ++ (List.join "\n" ss))
+    combineErrors _   (Right a) = Right a
 
     unzipItems : List (Either (List ParameterShadow) (Either Participant (Either EventShadow (Either StateShadow (Either TransitionShadow (Either Meta (Either (Name, TipeShadow) PortShadow))))))) -> (List ParameterShadow, List Participant, List EventShadow, List StateShadow, List TransitionShadow, List Meta, List (Name, TipeShadow), List PortShadow) -> (List ParameterShadow, List Participant, List EventShadow, List StateShadow, List TransitionShadow, List Meta, List (Name, TipeShadow), List PortShadow)
     unzipItems []        (m, ps, es, ss, ts, ms, ds, pts) = (m, reverse ps, reverse es, reverse ss, reverse ts, ms, ds, pts)
@@ -854,38 +848,28 @@ fsm
 
     deshadowState : List Port -> StateShadow -> Either String State
     deshadowState pts (MkStateShadow n (Just enas) (Just exas) ms)
-      = let (eners, enas') = unzipEitherList $ map (deshadowAction pts) enas
-            (exers, exas') = unzipEitherList $ map (deshadowAction pts) exas in
-            if length eners > Z
-               then Left (List.join "\n" eners)
-               else if length exers > Z
-                       then Left (List.join "\n" exers)
-                       else Right (MkState n (Just enas') (Just exas') ms)
+      = do enas' <- combineErrors "" $ liftEitherList $ map (deshadowAction pts) enas
+           exas' <- combineErrors "" $ liftEitherList $ map (deshadowAction pts) exas
+           pure (MkState n (Just enas') (Just exas') ms)
     deshadowState pts (MkStateShadow n (Just as) Nothing ms)
-      = let (ers, as') = unzipEitherList $ map (deshadowAction pts) as in
-            if length ers > Z
-               then Left (List.join "\n" ers)
-               else Right (MkState n (Just as') Nothing ms)
+      = do as' <- combineErrors "" $ liftEitherList $ map (deshadowAction pts) as
+           pure (MkState n (Just as') Nothing ms)
     deshadowState pts (MkStateShadow n Nothing (Just as) ms)
-      = let (ers, as') = unzipEitherList $ map (deshadowAction pts) as in
-            if length ers > Z
-               then Left (List.join "\n" ers)
-               else Right (MkState n Nothing (Just as') ms)
+      = do as' <- combineErrors "" $ liftEitherList $ map (deshadowAction pts) as
+           pure (MkState n Nothing (Just as') ms)
     deshadowState pts (MkStateShadow n Nothing Nothing ms)
       = Right (MkState n Nothing Nothing ms)
 
     deshadowTrigger : List Participant -> List Event -> List Port -> TriggerShadow -> Either String Trigger
     deshadowTrigger ps es pts (MkTriggerShadow prs er g (Just as))
-      = let (errs, as') = unzipEitherList $ map (deshadowAction pts) as in
-            if length errs > Z
-               then Left $ List.join "\n" errs
-               else do Just e <- liftFromMaybe $ derefEvent er es
-                       | Nothing => Left ("Missing event " ++ er)
-                       Just ps' <- liftFromMaybe $ liftMaybeList $ filter isJust $ derefParticipants prs ps
-                       | Nothing => Left ("Missing participants " ++ (List.join ", " prs))
-                       Just ps'' <- liftFromMaybe $ List1.fromList ps'
-                       | Nothing => Left ("Require one " ++ (bold "participant") ++ " at least")
-                       pure (MkTrigger ps'' e g (List1.fromList as'))
+      = do as' <- combineErrors "" $ liftEitherList $ map (deshadowAction pts) as
+           Just e <- liftFromMaybe $ derefEvent er es
+           | Nothing => Left ("Missing event " ++ er)
+           Just ps' <- liftFromMaybe $ liftMaybeList $ filter isJust $ derefParticipants prs ps
+           | Nothing => Left ("Missing participants " ++ (List.join ", " prs))
+           Just ps'' <- liftFromMaybe $ List1.fromList ps'
+           | Nothing => Left ("Require one " ++ (bold "participant") ++ " at least")
+           pure (MkTrigger ps'' e g (List1.fromList as'))
     deshadowTrigger ps es pts (MkTriggerShadow prs er g Nothing)
       = do Just e <- liftFromMaybe $ derefEvent er es
            | Nothing => Left ("Missing event " ++ er)
@@ -897,50 +881,41 @@ fsm
 
     deshadowTransition : List Participant -> List Event -> List State -> List Port -> TransitionShadow -> Either String Transition
     deshadowTransition ps es ss pts (MkTransitionShadow sr dr ts)
-      = let (errs, ts') = unzipEitherList $ map (deshadowTrigger ps es pts) ts in
-            if length errs > Z
-               then Left $ List.join "\n" errs
-               else do Just src <- liftFromMaybe $ derefState sr ss
-                       | Nothing => Left ("Missing source state " ++ sr)
-                       Just dst <- liftFromMaybe $ derefState dr ss
-                       | Nothing => Left ("Missing destination state " ++ sr)
-                       Just ts'' <- liftFromMaybe $ List1.fromList ts'
-                       | Nothing => Left ("Require one trigger in transition from " ++ sr ++ " to " ++ dr)
-                       pure (MkTransition src dst ts'')
+      = do ts' <- combineErrors "" $ liftEitherList $ map (deshadowTrigger ps es pts) ts
+           Just src <- liftFromMaybe $ derefState sr ss
+           | Nothing => Left ("Missing source state " ++ sr)
+           Just dst <- liftFromMaybe $ derefState dr ss
+           | Nothing => Left ("Missing destination state " ++ sr)
+           Just ts'' <- liftFromMaybe $ List1.fromList ts'
+           | Nothing => Left ("Require one trigger in transition from " ++ sr ++ " to " ++ dr)
+           pure (MkTransition src dst ts'')
 
     mutual
       deshadowParameter : SortedMap String Tipe -> ParameterShadow -> Either String Parameter
       deshadowParameter env (n, Left ref, ms) = case lookup ref env of
                                                      Nothing => Left ref
                                                      Just t => Right (n, t, ms)
-      deshadowParameter env (n, Right t, ms)  = case shadowToTipe env t of
-                                                     Left e => Left e
-                                                     Right t' => Right (n, t', ms)
+      deshadowParameter env (n, Right t, ms)  = do t' <- shadowToTipe env n t
+                                                   pure (n, t', ms)
 
-      shadowToTipe : SortedMap String Tipe -> TipeShadow -> Either String Tipe
-      shadowToTipe env (TPrimTypeShadow t)        = Right (TPrimType t)
-      shadowToTipe env (TListShadow (Left ref))   = case lookup ref env of
-                                                         Nothing => Left ref
-                                                         Just t => Right (TList t)
-      shadowToTipe env (TListShadow (Right t))    = case shadowToTipe env t of
-                                                         Left e => Left e
-                                                         Right t' => Right (TList t')
-      shadowToTipe env (TDictShadow k (Left ref)) = case lookup ref env of
-                                                         Nothing => Left ref
-                                                         Just v => Right (TDict k v)
-      shadowToTipe env (TDictShadow k (Right v))  = case shadowToTipe env v of
-                                                         Left e => Left e
-                                                         Right v' => Right (TDict k v')
-      shadowToTipe env (TArrowShadow f t)         = case shadowToTipe env f of
-                                                         Left e => Left e
-                                                         Right f' => case shadowToTipe env t of
-                                                                          Left e' => Left e'
-                                                                          Right t' => Right (TArrow f' t')
-      shadowToTipe env TUnitShadow                = Right TUnit
-      shadowToTipe env (TRecordShadow n ps)       = let (es, ps') = unzipEitherList (map (deshadowParameter env) ps) in
-                                                        if length es > Z
-                                                           then Left $ foldl (\acc, x => acc ++ " " ++ x ) "" es
-                                                           else Right (TRecord n ps')
+      shadowToTipe : SortedMap String Tipe -> Name -> TipeShadow -> Either String Tipe
+      shadowToTipe env _ (TPrimTypeShadow t)        = Right (TPrimType t)
+      shadowToTipe env _ (TListShadow (Left ref))   = case lookup ref env of
+                                                           Nothing => Left ref
+                                                           Just t => Right (TList t)
+      shadowToTipe env n (TListShadow (Right t))    = do t' <- shadowToTipe env n t
+                                                         pure (TList t')
+      shadowToTipe env _ (TDictShadow k (Left ref)) = case lookup ref env of
+                                                           Nothing => Left ref
+                                                           Just v => Right (TDict k v)
+      shadowToTipe env n (TDictShadow k (Right v))  = do v' <- shadowToTipe env n v
+                                                         pure (TDict k v')
+      shadowToTipe env n (TArrowShadow f t)         = do f' <- shadowToTipe env n f
+                                                         t' <- shadowToTipe env n t
+                                                         pure (TArrow f' t')
+      shadowToTipe env _ TUnitShadow                = Right TUnit
+      shadowToTipe env n (TRecordShadow ps)         = do ps' <- combineErrors "" $ liftEitherList $ map (deshadowParameter env) ps
+                                                         pure (TRecord n ps')
 
     deshadowDefType : List (Name, TipeShadow) -> Either String (SortedMap Name Tipe)
     deshadowDefType ds
@@ -950,25 +925,21 @@ fsm
         deshadowDefType' []               []       _   acc = Right acc
         deshadowDefType' []               unsolved Z   acc = Left ("Unsolved customized types: " ++ (foldl (\a, (n, _) => a ++ " " ++ (bold n)) "" unsolved))
         deshadowDefType' []               unsolved cnt acc = deshadowDefType' unsolved [] (minus cnt 1) acc
-        deshadowDefType' (d@(n, t) :: xs) unsolved cnt acc = case shadowToTipe acc t of
+        deshadowDefType' (d@(n, t) :: xs) unsolved cnt acc = case shadowToTipe acc n t of
                                                                   Left  _  => deshadowDefType' xs (d :: unsolved) cnt acc
                                                                   Right t' => deshadowDefType' xs unsolved cnt $ insert n t' acc
 
     deshadowEvent : SortedMap Name Tipe -> EventShadow -> Either String Event
     deshadowEvent env (MkEventShadow n ps ms)
-      = let (es, ps') = unzipEitherList $ map (deshadowParameter env) ps in
-            if length es > Z
-               then Left (List.join "\n" es)
-               else Right (MkEvent n ps' ms)
+      = do ps' <- combineErrors "" $ liftEitherList $ map (deshadowParameter env) ps
+           pure (MkEvent n ps' ms)
 
     deshadowPort : SortedMap Name Tipe -> PortShadow -> Either String Port
     deshadowPort env (MkPortShadow n ts)
-      = let (es, ts') = unzipEitherList $ map (shadowToTipe env) ts in
-            if length es > Z
-               then Left (List.join "\n" es)
-               else case (reverse ts') of
-                         [] => Right (MkPort n TUnit)
-                         (x :: xs) => Right (MkPort n (constructTArrow xs x))
+      = do ts' <- combineErrors "" $ liftEitherList $ map (shadowToTipe env "") ts
+           case (reverse ts') of
+                [] => pure (MkPort n TUnit)
+                (x :: xs) => pure (MkPort n (constructTArrow xs x))
 
     constructFsm : String -> List Parameter -> List Participant -> List Event -> List State -> List Transition -> Maybe (List Meta) -> List Port -> Either String Fsm
     constructFsm n m ps es ss ts ms pts

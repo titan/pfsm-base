@@ -160,6 +160,20 @@ expressionsOfTestExpression e
     expressionsOfTestExpression' (UnaryTestExpression _ t)    acc = expressionsOfTestExpression' t acc
     expressionsOfTestExpression' (CompareExpression  _ le re) acc = insert le $ insert re acc
 
+------------
+-- Action --
+------------
+
+export
+outputActionEqualityChecker : Action -> Action -> Bool
+outputActionEqualityChecker (OutputAction n1 _) (OutputAction n2 _) = n1 == n2
+outputActionEqualityChecker _                   _                   = False
+
+export
+assignmentActionEqualityChecker : Action -> Action -> Bool
+assignmentActionEqualityChecker (AssignmentAction l1 r1) (AssignmentAction l2 r2) = l1 == l2 && r1 == r2
+assignmentActionEqualityChecker _                        _                        = False
+
 -----------
 -- State --
 -----------
