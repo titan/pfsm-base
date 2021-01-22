@@ -20,7 +20,15 @@ TokenKind FsmKind where
   tokValue FKReal x       = cast x
   tokValue FKIdentifier x = x
   tokValue FKChar x       = case unpack(x) of
-                                 c0 :: c1 :: c2 :: [] => c1
+                                 '\'' :: '\\' :: 'a' :: '\'' :: [] => '\a'
+                                 '\'' :: '\\' :: 'b' :: '\'' :: [] => '\b'
+                                 '\'' :: '\\' :: 'f' :: '\'' :: [] => '\f'
+                                 '\'' :: '\\' :: 'n' :: '\'' :: [] => '\n'
+                                 '\'' :: '\\' :: 'r' :: '\'' :: [] => '\r'
+                                 '\'' :: '\\' :: 't' :: '\'' :: [] => '\t'
+                                 '\'' :: '\\' :: 'v' :: '\'' :: [] => '\v'
+                                 '\'' :: '\\' :: '\\' :: '\'' :: [] => '\\'
+                                 '\'' :: c :: '\'' :: [] => c
                                  _ => '\0'
   tokValue FKString x     = case length x > 1 of
                                  True => (substr 1 (minus (length x) 2) x)
