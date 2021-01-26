@@ -209,6 +209,7 @@ mutual
             | TDict PrimType Tipe
             | TArrow Tipe Tipe
             | TRecord Name (List Parameter)
+            | TRecordRef Name
             | TUnit
 
   public export
@@ -222,6 +223,7 @@ Show Tipe where
   show (TDict k v)    = "(dict " ++ (show k) ++ " " ++ (show v) ++ ")"
   show (TArrow p r)   = "(-> " ++ (show p) ++ " " ++ (show r) ++ ")"
   show (TRecord n ts) = "(record " ++ (show n) ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" ts) ++ ")"
+  show (TRecordRef n) = "(record-ref " ++ (show n) ++ ")"
   show TUnit          = "()"
 
 export
@@ -231,6 +233,7 @@ Eq Tipe where
   (==) (TDict k1 v1)    (TDict k2 v2)    = k1 == k2 && v1 == v2
   (==) (TArrow p1 r1)   (TArrow p2 r2)   = p1 == p2 && r1 == r2
   (==) (TRecord n1 ts1) (TRecord n2 ts2) = n1 == n2 && ts1 == ts2
+  (==) (TRecordRef n1)  (TRecordRef n2)  = n1 == n2
   (==) TUnit            TUnit            = True
   (==) _                _                = False
 

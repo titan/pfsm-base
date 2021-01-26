@@ -42,6 +42,7 @@ mutual
                   | TDictShadow PrimType (Either String TipeShadow)
                   | TArrowShadow TipeShadow TipeShadow
                   | TRecordShadow (List ParameterShadow)
+                  | TRecordRefShadow Name
                   | TUnitShadow
 
   ParameterShadow : Type
@@ -261,7 +262,7 @@ meta
 
 mutual
   tipe : Rule TipeShadow
-  tipe = primtype <|> list <|> dict <|> rekord <|> void
+  tipe = primtype <|> list <|> dict <|> rekord <|> void <|> recordref
     where
       prim : Rule PrimType
       prim = terminal ("Expected one of strings: " ++ (foldl (\ a, e => a ++ " " ++ e) "" primTypeStrs))
@@ -324,6 +325,11 @@ mutual
       void
         = do symbol "void"
              pure TUnitShadow
+
+      recordref : Rule TipeShadow
+      recordref
+        = do s <- anySymbol
+             pure (TRecordRefShadow s)
 
   thz : Rule ParameterShadow
   thz
@@ -914,6 +920,7 @@ fsm
                                                          t' <- shadowToTipe env n t
                                                          pure (TArrow f' t')
       shadowToTipe env _ TUnitShadow                = Right TUnit
+      shadowToTipe env _ (TRecordRefShadow n)       = Right (TRecordRef n)
       shadowToTipe env n (TRecordShadow ps)         = do ps' <- combineErrors "" $ liftEitherList $ map (deshadowParameter env) ps
                                                          pure (TRecord n ps')
 
@@ -922,12 +929,15 @@ fsm
       = deshadowDefType' ds [] (length ds) $ foldl (\acc, x => case PrimType.fromString x of Just t => insert x (TPrimType t) acc; Nothing => acc) empty primTypeStrs
       where
         deshadowDefType' : List (Name, TipeShadow) -> List (Name, TipeShadow) -> Nat -> SortedMap Name Tipe -> Either String (SortedMap Name Tipe)
-        deshadowDefType' []               []       _   acc = Right acc
-        deshadowDefType' []               unsolved Z   acc = Left ("Unsolved customized types: " ++ (foldl (\a, (n, _) => a ++ " " ++ (bold n)) "" unsolved))
-        deshadowDefType' []               unsolved cnt acc = deshadowDefType' unsolved [] (minus cnt 1) acc
-        deshadowDefType' (d@(n, t) :: xs) unsolved cnt acc = case shadowToTipe acc n t of
-                                                                  Left  _  => deshadowDefType' xs (d :: unsolved) cnt acc
-                                                                  Right t' => deshadowDefType' xs unsolved cnt $ insert n t' acc
+        deshadowDefType' []               []       _   acc                   = Right acc
+        deshadowDefType' []               unsolved Z   acc                   = Left ("Unsolved customized types: " ++ (foldl (\a, (n, _) => a ++ " " ++ (bold n)) "" unsolved))
+        deshadowDefType' []               unsolved cnt acc                   = deshadowDefType' unsolved [] (minus cnt 1) acc
+        deshadowDefType' (d@(n, t@(TRecordShadow _)) :: xs) unsolved cnt acc = case shadowToTipe (insert n (TRecordRef n) acc) n t of
+                                                                                    Left  _  => deshadowDefType' xs (d :: unsolved) cnt acc
+                                                                                    Right t' => deshadowDefType' xs unsolved cnt $ insert n t' acc
+        deshadowDefType' (d@(n, t) :: xs) unsolved cnt acc                   = case shadowToTipe acc n t of
+                                                                                    Left  _  => deshadowDefType' xs (d :: unsolved) cnt acc
+                                                                                    Right t' => deshadowDefType' xs unsolved cnt $ insert n t' acc
 
     deshadowEvent : SortedMap Name Tipe -> EventShadow -> Either String Event
     deshadowEvent env (MkEventShadow n ps ms)

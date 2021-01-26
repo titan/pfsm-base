@@ -112,7 +112,7 @@ namespace Prelude.Types.Either
 export
 liftRecords : List Parameter -> List Tipe
 liftRecords ps
-  = liftRecords' ps []
+  = nub $ liftRecords' ps []
   where
     liftRecordFromTipe : Tipe -> Maybe (Tipe, List Parameter)
     liftRecordFromTipe (TList t)        = liftRecordFromTipe t
