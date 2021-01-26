@@ -616,6 +616,7 @@ export
 rootEnv : Fsm -> SortedMap Expression Tipe
 rootEnv fsm
   = let eps = parametersOfEvents fsm.events
-        env' = foldl (\acc, (n, t, _) => insert (IdentifyExpression ("@" ++ n)) t acc) Data.SortedMap.empty fsm.model
+        mps = the (List Parameter) (("state", (TPrimType PTInt), Nothing) :: fsm.model)
+        env' = foldl (\acc, (n, t, _) => Data.SortedMap.insert (IdentifyExpression ("@" ++ n)) t acc) Data.SortedMap.empty mps
         env = foldl (\acc, (n, t, _) => insert (IdentifyExpression n) t acc) env' eps in
         env
