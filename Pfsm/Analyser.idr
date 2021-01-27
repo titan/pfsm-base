@@ -920,7 +920,9 @@ fsm
                                                          t' <- shadowToTipe env n t
                                                          pure (TArrow f' t')
       shadowToTipe env _ TUnitShadow                = Right TUnit
-      shadowToTipe env _ (TRecordRefShadow n)       = Right (TRecordRef n)
+      shadowToTipe env _ (TRecordRefShadow ref)     = case lookup ref env of
+                                                           Just t@(TRecord ref _) => Right t
+                                                           _ => Right (TRecordRef ref)
       shadowToTipe env n (TRecordShadow ps)         = do ps' <- combineErrors "" $ liftEitherList $ map (deshadowParameter env) ps
                                                          pure (TRecord n ps')
 
