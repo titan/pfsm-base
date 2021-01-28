@@ -404,7 +404,7 @@ Show TestExpression where
 export
 Eq TestExpression where
   (==) (PrimitiveTestExpression e1)       (PrimitiveTestExpression e2)       = e1 == e2
-  (==) (BinaryTestExpression op1 ea1 eb1) (BinaryTestExpression op2 ea2 eb2) = (op1 == op2) && ((ea1 == ea2) || (ea1 == eb2) || (eb1 == eb2) || (eb1 == ea2))
+  (==) (BinaryTestExpression op1 ea1 eb1) (BinaryTestExpression op2 ea2 eb2) = (op1 == op2) && ((ea1 == ea2) || (ea1 == eb2) && (eb1 == eb2) || (eb1 == ea2))
   (==) (UnaryTestExpression op1 e1)       (UnaryTestExpression op2 e2)       = (op1 == op2) && (e1 == e2)
   (==) (CompareExpression op1 ea1 eb1)    (CompareExpression op2 ea2 eb2)    = (op1 == op2) && (ea1 == ea2) && (eb1 == eb2)
   (==) _                                  _                                  = False
