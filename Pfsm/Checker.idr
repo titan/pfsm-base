@@ -34,6 +34,7 @@ checkOutputActionPorts fsm
   where
     checkOutputActionPortType : SortedMap Expression Tipe -> Tipe -> List Expression -> Maybe String
     checkOutputActionPortType env TUnit              []                                  = Nothing
+    checkOutputActionPortType env _                  (x :: [])                           = Nothing
     checkOutputActionPortType env TUnit              (x :: xs)                           = Just ("Parameter type mismatch")
     checkOutputActionPortType env (TArrow tsrc tdst) []                                  = Just ("Parameter type mismatch")
     checkOutputActionPortType env (TArrow tsrc tdst) ((ApplicationExpression _ _) :: xs) = checkOutputActionPortType env tdst xs
