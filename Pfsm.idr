@@ -74,7 +74,7 @@ namespace Data.Strings
 
   export
   camelize : String -> String
-  camelize s = foldl (\acc, x => acc ++ capital x) "" (Data.List1.toList (split (== '-') s))
+  camelize s = foldl (\acc, x => acc ++ capital x) "" (Data.List1.forget (split (== '-') s))
 
   export
   replaceAll : String -> String -> String -> String
@@ -192,7 +192,7 @@ liftFromAndToStates ((MkTransition s d _) :: xs) (srcs, dsts) = liftFromAndToSta
 export
 startState : Fsm -> Maybe State
 startState fsm
-  = let (fs, ds) = liftFromAndToStates (List1.toList fsm.transitions) (empty, empty) in
+  = let (fs, ds) = liftFromAndToStates (List1.forget fsm.transitions) (empty, empty) in
         case Data.SortedSet.toList (difference fs ds) of
              [] => Nothing
              (x :: xs) => Just x
@@ -200,7 +200,7 @@ startState fsm
 export
 stopState : Fsm -> SortedSet State
 stopState fsm
-  = let (fs, ds) = liftFromAndToStates (List1.toList fsm.transitions) (empty, empty) in
+  = let (fs, ds) = liftFromAndToStates (List1.forget fsm.transitions) (empty, empty) in
         difference ds fs
 
 ----------------

@@ -28,8 +28,8 @@ summary xs
 checkOutputActionPorts : Fsm -> List (Maybe String)
 checkOutputActionPorts fsm
   = let env = rootEnv fsm
-        serrs = map (checkOutputActionPortOfState env) $ List1.toList fsm.states
-        terrs = map (checkOutputActionPortOfTransition env) $ List1.toList fsm.transitions in
+        serrs = map (checkOutputActionPortOfState env) $ List1.forget fsm.states
+        terrs = map (checkOutputActionPortOfTransition env) $ List1.forget fsm.transitions in
         List.flatten $ serrs ++ terrs
   where
     checkOutputActionPortType : SortedMap Expression Tipe -> Tipe -> List Expression -> Maybe String
@@ -65,7 +65,7 @@ checkOutputActionPorts fsm
 
     checkOutputActionPortOfTransition : SortedMap Expression Tipe -> Transition -> List (Maybe String)
     checkOutputActionPortOfTransition env (MkTransition _ _ ts)
-      = List.flatten $ map (checkOutputActionPortOfTrigger env) $ List1.toList ts
+      = List.flatten $ map (checkOutputActionPortOfTrigger env) $ List1.forget ts
       where
         checkOutputActionPortOfTrigger : SortedMap Expression Tipe -> Trigger -> List (Maybe String)
         checkOutputActionPortOfTrigger env (MkTrigger _ (MkEvent _ ps _) _ (Just as))

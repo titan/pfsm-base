@@ -39,25 +39,25 @@ namespace Data.List
 namespace Data.List1
   export
   enumerate : List1 a -> List1 (Nat, a)
-  enumerate (x :: xs)
-    = enumerate' ((Z, x) :: []) (S Z) xs
+  enumerate (x ::: xs)
+    = enumerate' ((Z, x) ::: []) (S Z) xs
     where
       enumerate' : List1 (Nat, a) -> Nat -> List a -> List1 (Nat, a)
       enumerate' acc _   []        = reverse acc
-      enumerate' acc idx (x :: xs) = enumerate' ((idx, x) :: (List1.toList acc)) (S idx) xs
+      enumerate' acc idx (x :: xs) = enumerate' ((idx, x) ::: (List1.forget acc)) (S idx) xs
 
   export
   join : String -> List1 String -> String
-  join sep (x :: []) = x
-  join sep (x :: xs) = foldl (\acc, y => acc ++ sep ++ y) x xs
+  join sep (x ::: []) = x
+  join sep (x ::: xs) = foldl (\acc, y => acc ++ sep ++ y) x xs
 
   export
   length : List1 a -> Nat
-  length (_ :: xs) = 1 + length xs
+  length (_ ::: xs) = 1 + length xs
 
   export
   index : Eq a => a -> List1 a -> Maybe Nat
-  index a (x :: xs)
+  index a (x ::: xs)
     = if a == x
          then Just Z
          else do i <- index a xs
@@ -65,25 +65,19 @@ namespace Data.List1
 
   export
   elemBy : (a -> a -> Bool) -> a -> List1 a -> Bool
-  elemBy p e (x :: xs) = p e x || elemBy p e xs
+  elemBy p e (x ::: xs) = p e x || elemBy p e xs
 
   public export
   filter : (p : a -> Bool) -> List1 a -> List a
-  filter p (x :: xs)
+  filter p (x ::: xs)
      = if p x
           then x :: filter p xs
           else filter p xs
 
   public export
-  (++) : (1 xs, ys : List1 a) -> List1 a
-  (x :: []) ++ (y :: ys) = x :: (y :: ys)
-  (x :: xs) ++ (y :: []) = x :: (xs ++ [y])
-  (x :: xs) ++ (y :: ys) = x :: (xs ++ (y :: ys))
-
-  public export
   flatten : List1 (List1 a) -> List1 a
-  flatten (x :: []) = x
-  flatten (x :: xs) = foldl (\acc, y => acc ++ y) x xs
+  flatten (x ::: []) = x
+  flatten (x ::: xs) = foldl (\acc, y => acc <+> y) x xs
 
 public export
 Name : Type
@@ -508,7 +502,7 @@ Ord Event where
 
 export
 parametersOfEvents : List1 Event -> List Parameter
-parametersOfEvents = (nubBy (\x, y => fst x == fst y)) . flatten . (map params) . List1.toList
+parametersOfEvents = (nubBy (\x, y => fst x == fst y)) . flatten . (map params) . List1.forget
 
 public export
 record Trigger where
@@ -555,12 +549,15 @@ Ord Transition where
 export
 actionsOfTransition : Transition -> List (List Action)
 actionsOfTransition (MkTransition _ _ ts)
-  = foldl (\acc, (MkTrigger _ _ _ as) => case as of Just as' => (List1.toList as') :: acc; Nothing => acc) [] ts
+  = foldl (\acc, (MkTrigger _ _ _ as) =>
+      case as of
+           Just as' => (List1.forget as') :: acc
+           Nothing => acc) [] ts
 
 export
 actionsOfTransitions : List1 Transition -> List (List Action)
 actionsOfTransitions
-  = flatten . List1.toList . (map actionsOfTransition)
+  = flatten . List1.forget . (map actionsOfTransition)
 
 export
 actionsOfState : (State -> Maybe (List Action)) -> State -> List Action
@@ -570,7 +567,7 @@ actionsOfState f
 export
 actionsOfStates : (State -> Maybe (List Action)) -> List1 State -> List (List Action)
 actionsOfStates f
-  = (filter (\x => length x > 0)) . (List1.toList) . (map (actionsOfState f))
+  = (filter (\x => length x > 0)) . (List1.forget) . (map (actionsOfState f))
 
 public export
 record Fsm where
