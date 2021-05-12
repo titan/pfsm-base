@@ -150,14 +150,14 @@ MetaKey = String
 
 public export
 data MetaValue = MVString String
-               | MVList (List String)
-               | MVDict (SortedMap String String)
+               | MVList (List MetaValue)
+               | MVDict (SortedMap String MetaValue)
 
 export
 Show MetaValue where
   show (MVString s) = show s
-  show (MVList vs)  = "(list " ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" vs) ++ ")"
-  show (MVDict vs)  = "(dict " ++ (foldl (\acc, (x, y) => acc ++ " (" ++ (show x) ++ " " ++ (show y) ++ ")") "" (SortedMap.toList vs)) ++ ")"
+  show (MVList vs)  = "(list " ++ (List.join " " (map (\x => (show x)) vs)) ++ ")"
+  show (MVDict vs)  = "(dict " ++ (List.join " " (map (\(x, y) => "(" ++ (show x) ++ " " ++ (show y) ++ ")") (SortedMap.toList vs))) ++ ")"
 
 export
 Eq MetaValue where

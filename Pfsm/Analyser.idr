@@ -199,62 +199,66 @@ meta
                                              Right (result, _) => Just result
                          _ => Nothing)
   where
-    mvstring : Rule MetaValue
-    mvstring
-      = do v <- anyString
-           pure (MVString v)
+    mutual
+      mvstring : Rule MetaValue
+      mvstring
+        = do v <- anyString
+             pure (MVString v)
 
-    mvlist : Rule MetaValue
-    mvlist
-      = terminal ("Expected " ++ (bold "list") ++ " sexp")
-                 (\x => case x of
-                             SExpList ss => case parse mvlist' ss of
-                                                 Left _ => Nothing
-                                                 Right (v, _) => Just v
-                             _ => Nothing)
-      where
-        mvlist' : Rule MetaValue
-        mvlist'
-          = do symbol "list" -- must have to consume the following MANY rule
-               vs <- many anyString
-               pure (MVList vs)
+      mvlist : Rule MetaValue
+      mvlist
+        = terminal ("Expected " ++ (bold "list") ++ " sexp")
+                   (\x => case x of
+                               SExpList ss => case parse mvlist' ss of
+                                                   Left _ => Nothing
+                                                   Right (v, _) => Just v
+                               _ => Nothing)
+        where
+          mvlist' : Rule MetaValue
+          mvlist'
+            = do symbol "list" -- must have to consume the following MANY rule
+                 vs <- many mvvalue
+                 pure (MVList vs)
 
-    mvdict : Rule MetaValue
-    mvdict
-      = terminal ("Expected " ++ (bold "dict") ++ " sexp")
-                 (\x => case x of
-                             SExpList ss => case parse mvdict' ss of
-                                                 Left _ => Nothing
-                                                 Right (v, _) => Just v
-                             _ => Nothing)
-      where
-        strtuple : Rule (String, String)
-        strtuple
-          = terminal ("Expected sexp list")
-                     (\x => case x of
-                                 SExpList ss => case parse strtuple' ss of
-                                                     Left _ => Nothing
-                                                     Right (v, _) => Just v
-                                 _ => Nothing)
-          where
-            strtuple' : Rule (String, String)
-            strtuple'
-              = do k <- anyString
-                   v <- anyString
-                   pure ((k, v))
+      mvdict : Rule MetaValue
+      mvdict
+        = terminal ("Expected " ++ (bold "dict") ++ " sexp")
+                   (\x => case x of
+                               SExpList ss => case parse mvdict' ss of
+                                                   Left _ => Nothing
+                                                   Right (v, _) => Just v
+                               _ => Nothing)
+        where
+          pair : Rule (String, MetaValue)
+          pair
+            = terminal ("Expected sexp list")
+                       (\x => case x of
+                                   SExpList ss => case parse pair' ss of
+                                                       Left _ => Nothing
+                                                       Right (v, _) => Just v
+                                   _ => Nothing)
+            where
+              pair' : Rule (String, MetaValue)
+              pair'
+                = do k <- anyString
+                     v <- mvvalue
+                     pure ((k, v))
 
-        mvdict' : Rule MetaValue
-        mvdict'
-          = do symbol "dict"
-               ts <- many strtuple
-               pure (MVDict (foldl (\acc, (x, y) => insert x y acc) SortedMap.empty ts))
+          mvdict' : Rule MetaValue
+          mvdict'
+            = do symbol "dict"
+                 ts <- many pair
+                 pure (MVDict (foldl (\acc, (x, y) => insert x y acc) SortedMap.empty ts))
 
-    meta' : Rule Meta
-    meta'
-      = do symbol "meta"
-           k <- anyString
-           v <- (mvstring <|> mvlist <|> mvdict)
-           pure (MkMeta k v)
+      mvvalue: Rule MetaValue
+      mvvalue = mvstring <|> mvlist <|> mvdict
+
+      meta' : Rule Meta
+      meta'
+        = do symbol "meta"
+             k <- anyString
+             v <- mvvalue
+             pure (MkMeta k v)
 
 ----------
 -- Type --

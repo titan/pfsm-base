@@ -126,6 +126,11 @@ liftRecords ps
                                               Nothing => liftRecords' xs acc
                                               Just (t, ps) => liftRecords' xs ((liftRecords ps) ++ (t :: acc))
 
+export
+returnType : Tipe -> Tipe
+returnType (TArrow _ t) = returnType t
+returnType t            = t
+
 ----------------
 -- Expression --
 ----------------
