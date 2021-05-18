@@ -428,7 +428,7 @@ data Action = AssignmentAction Expression Expression
 export
 Show Action where
   show (AssignmentAction e1 e2)       = "(set! " ++ (show e1) ++ " " ++ (show e2) ++ ")"
-  show (OutputAction (MkPort n _) []) = "(output" ++ n ++ ")"
+  show (OutputAction (MkPort n _) []) = "(output " ++ n ++ ")"
   show (OutputAction (MkPort n _) es) = "(output " ++ n ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" es) ++ ")"
 
 export
@@ -514,8 +514,8 @@ record Trigger where
 
 export
 Show Trigger where
-  show (MkTrigger ps e (Just g) (Just as)) = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ ") (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
-  show (MkTrigger ps e Nothing  (Just as)) = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ " (action" ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
+  show (MkTrigger ps e (Just g) (Just as)) = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ ") (action " ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
+  show (MkTrigger ps e Nothing  (Just as)) = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ " (action " ++ (foldl (\acc, x => acc ++ " " ++ (show x)) "" as) ++ "))"
   show (MkTrigger ps e (Just g) Nothing)   = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ " (where " ++ (show g) ++ "))"
   show (MkTrigger ps e Nothing  Nothing)   = "(trigger " ++ (show ps) ++ " " ++ (show e) ++ ")"
 
