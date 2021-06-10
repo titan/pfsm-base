@@ -33,17 +33,18 @@ checkOutputActionPorts fsm
         List.flatten $ serrs ++ terrs
   where
     checkOutputActionPortType : SortedMap Expression Tipe -> Tipe -> List Expression -> Maybe String
-    checkOutputActionPortType env TUnit              []                                  = Nothing
-    checkOutputActionPortType env _                  (x :: [])                           = Nothing
-    checkOutputActionPortType env TUnit              (x :: xs)                           = Just ("Parameter type mismatch")
-    checkOutputActionPortType env (TArrow tsrc tdst) []                                  = Just ("Parameter type mismatch")
-    checkOutputActionPortType env (TArrow tsrc tdst) ((ApplicationExpression _ _) :: xs) = checkOutputActionPortType env tdst xs
-    checkOutputActionPortType env (TArrow tsrc tdst) (x :: xs)                           = case inferType env x of
-                                                                                                Just t => if tsrc == t
-                                                                                                             then checkOutputActionPortType env tdst xs
-                                                                                                             else Just ("Parameter type mismatch, from " ++ (show tsrc) ++ " to " ++ (show x) ++ ",")
-                                                                                                _ => checkOutputActionPortType env tdst xs
-    checkOutputActionPortType env _                  _                                   = Just ("Parameter type mismatch")
+    checkOutputActionPortType env TUnit               []                                  = Nothing
+    checkOutputActionPortType env _                   (x :: [])                           = Nothing
+    checkOutputActionPortType env TUnit               (x :: xs)                           = Just ("Parameter type mismatch")
+    checkOutputActionPortType env (TArrow TUnit tdst) []                                  = Nothing
+    checkOutputActionPortType env (TArrow tsrc tdst)  []                                  = Just ("Parameter type mismatch")
+    checkOutputActionPortType env (TArrow tsrc tdst)  ((ApplicationExpression _ _) :: xs) = checkOutputActionPortType env tdst xs
+    checkOutputActionPortType env (TArrow tsrc tdst)  (x :: xs)                           = case inferType env x of
+                                                                                                 Just t => if tsrc == t
+                                                                                                              then checkOutputActionPortType env tdst xs
+                                                                                                              else Just ("Parameter type mismatch, from " ++ (show tsrc) ++ " to " ++ (show x) ++ ",")
+                                                                                                 _ => checkOutputActionPortType env tdst xs
+    checkOutputActionPortType env _                   _                                   = Just ("Parameter type mismatch")
 
     checkOutputActionPort : SortedMap Expression Tipe -> Action -> Maybe String
     checkOutputActionPort env (AssignmentAction _ _)              = Nothing

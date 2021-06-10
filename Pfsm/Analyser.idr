@@ -827,7 +827,7 @@ fsm
     combineErrors _   (Right a) = Right a
 
     unzipItems : List (Either (List ParameterShadow) (Either Participant (Either EventShadow (Either StateShadow (Either TransitionShadow (Either Meta (Either (Name, TipeShadow) PortShadow))))))) -> (List ParameterShadow, List Participant, List EventShadow, List StateShadow, List TransitionShadow, List Meta, List (Name, TipeShadow), List PortShadow) -> (List ParameterShadow, List Participant, List EventShadow, List StateShadow, List TransitionShadow, List Meta, List (Name, TipeShadow), List PortShadow)
-    unzipItems []        (m, ps, es, ss, ts, ms, ds, pts) = (m, reverse ps, reverse es, reverse ss, reverse ts, ms, ds, pts)
+    unzipItems []        (m, ps, es, ss, ts, ms, ds, pts) = (m, reverse ps, reverse es, reverse ss, reverse ts, ms, ds, reverse pts)
     unzipItems (x :: xs) (m, ps, es, ss, ts, ms, ds, pts) = case x of
                                                             Left m' => unzipItems xs (m', ps, es, ss, ts, ms, ds, pts)
                                                             Right x0 => case x0 of
@@ -955,6 +955,7 @@ fsm
       = do ts' <- combineErrors "" $ liftEitherList $ map (shadowToTipe env "") ts
            case (reverse ts') of
                 [] => pure (MkPort n TUnit)
+                (x :: []) => pure (MkPort n (TArrow TUnit x))
                 (x :: xs) => pure (MkPort n (constructTArrow xs x))
 
     constructFsm : String -> List Parameter -> List Participant -> List Event -> List State -> List Transition -> Maybe (List Meta) -> List Port -> Either String Fsm
